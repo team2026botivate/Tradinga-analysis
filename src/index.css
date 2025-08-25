@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ensure the app covers full viewport and no white gutters */
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0; /* safety: Tailwind preflight already sets this but ensure */
+  overflow-x: hidden; /* prevent horizontal scroll + white gutter */
+}
