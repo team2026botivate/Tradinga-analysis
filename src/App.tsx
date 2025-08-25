@@ -8,10 +8,33 @@ import Screener from './components/Screener';
 import Portfolio from './components/Portfolio';
 import Calendar from './components/Calendar';
 import Settings from './components/Settings';
+import Login from './components/Login';
+import Trade from './components/Trade';
+import Transactions from './components/Transactions';
+import ProfitLoss from './components/ProfitLoss';
+ 
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isAuthed, setIsAuthed] = useState<boolean>(Boolean(localStorage.getItem('auth_token')));
+
+  const handleLogin = (email: string) => {
+    // token may have been set by Login when Remember me is checked
+    if (!localStorage.getItem('auth_token')) {
+      // fallback token for this demo session
+      localStorage.setItem('auth_token', 'demo');
+    }
+    sessionStorage.setItem('auth_email', email);
+    setIsAuthed(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    sessionStorage.removeItem('auth_email');
+    setIsAuthed(false);
+    setActiveTab('dashboard');
+  };
 
   const renderContent = () => {
     switch (activeTab) {
@@ -25,6 +48,12 @@ function App() {
         return <Screener />;
       case 'portfolio':
         return <Portfolio />;
+      case 'trade':
+        return <Trade />;
+      case 'transactions':
+        return <Transactions />;
+      case 'pnl':
+        return <ProfitLoss />;
       case 'calendar':
         return <Calendar />;
       case 'settings':
@@ -34,6 +63,10 @@ function App() {
     }
   };
 
+  if (!isAuthed) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-white to-white dark:from-slate-900 dark:to-slate-800">
       <div className="flex min-w-0">
@@ -42,6 +75,7 @@ function App() {
           setActiveTab={setActiveTab}
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
+          onLogout={handleLogout}
         />
         {/* Mobile backdrop when sidebar is open */}
         {!sidebarCollapsed && (

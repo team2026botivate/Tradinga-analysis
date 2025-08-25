@@ -3,7 +3,6 @@ import {
   TrendingUp,
   TrendingDown,
   BarChart3,
-  Activity,
   Target,
   AlertTriangle,
   Info

@@ -8,7 +8,11 @@ import {
   Settings,
   Menu,
   X,
-  User
+  User,
+  LogOut,
+  ArrowLeftRight,
+  Clock,
+  PieChart
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,14 +20,18 @@ interface SidebarProps {
   setActiveTab: (tab: string) => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  onLogout?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'watchlist', label: 'Watchlist', icon: Eye },
     { id: 'analysis', label: 'Analysis', icon: TrendingUp },
     { id: 'screener', label: 'Screener', icon: Filter },
+    { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
+    { id: 'transactions', label: 'Transactions', icon: Clock },
+    { id: 'pnl', label: 'Profit/Loss', icon: PieChart },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -31,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
   return (
     <div
       className={
-        `fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-50 ` +
+        `fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-50 flex flex-col ` +
         // Mobile (default): slide-in drawer width 64, hidden when collapsed
         `${collapsed ? '-translate-x-full w-64' : 'translate-x-0 w-64'} ` +
         // md and up: always visible, width depends on collapsed state
@@ -98,7 +106,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
         </ul>
       </nav>
 
-      {/* Notifications removed */}
+      {/* Logout action */}
+      <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center justify-start space-x-3 p-3 rounded-xl text-red-600 hover:text-white hover:bg-red-500 transition-colors"
+        >
+          <LogOut className="h-5 w-5" />
+          {!collapsed && <span className="font-medium">Logout</span>}
+        </button>
+      </div>
     </div>
   );
 };

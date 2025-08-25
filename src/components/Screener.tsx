@@ -132,7 +132,7 @@ const Screener: React.FC = () => {
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Market Cap</label>
             <select value={cap} onChange={(e) => setCap(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
               <option value="">Any</option>
               {caps.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -141,7 +141,7 @@ const Screener: React.FC = () => {
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Sector</label>
             <select value={sector} onChange={(e) => setSector(e.target.value)}
-                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
               <option value="">Any</option>
               {sectors.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -150,25 +150,25 @@ const Screener: React.FC = () => {
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Min Price</label>
             <input value={minPrice} onChange={(e) => setMinPrice(e.target.value)} type="number" min="0" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl" />
+                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400" />
           </div>
 
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Max Price</label>
             <input value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} type="number" min="0" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl" />
+                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400" />
           </div>
 
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Min Daily Change (%)</label>
             <input value={minChange} onChange={(e) => setMinChange(e.target.value)} type="number" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl" />
+                   className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 placeholder-slate-400" />
           </div>
 
           <div>
             <label className="text-sm text-slate-600 dark:text-slate-400">Rating</label>
             <select value={rating} onChange={(e) => setRating(e.target.value as Stock['rating'] | '')}
-                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                    className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
               <option value="">Any</option>
               {ratings.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
