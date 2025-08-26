@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp } from 'lucide-react';
+import { addTrade, getTrades, toCSV, Trade as JournalTrade } from '../store/trades';
+import Select from './ui/Select';
+import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft } from 'lucide-react';
 
 // Simple price map for demo. In a real app, fetch live prices.
 const demoPrices: Record<string, { name: string; price: number }> = {
@@ -59,12 +61,33 @@ const Trade: React.FC = () => {
   const [sellOrderType, setSellOrderType] = useState<OrderType>('Market');
 
   const [holdingsVersion, setHoldingsVersion] = useState(0); // trigger re-render after trade
+  const [activeTab, setActiveTab] = useState<'BUY' | 'SELL'>('BUY');
+  const [buyShimmer, setBuyShimmer] = useState(false);
+  const [sellShimmer, setSellShimmer] = useState(false);
+  // Journal-style trade form modal
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [draftDate, setDraftDate] = useState<string | undefined>(undefined);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (showFormModal) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [showFormModal]);
 
   useEffect(() => {
     setBuyPrice(demoPrices[buySymbol]?.price ?? 0);
+    setBuyShimmer(true);
+    const t = setTimeout(() => setBuyShimmer(false), 600);
+    return () => clearTimeout(t);
   }, [buySymbol]);
   useEffect(() => {
     setSellPrice(demoPrices[sellSymbol]?.price ?? 0);
+    setSellShimmer(true);
+    const t = setTimeout(() => setSellShimmer(false), 600);
+    return () => clearTimeout(t);
   }, [sellSymbol]);
 
   const buyName = demoPrices[buySymbol]?.name || '';
@@ -177,116 +200,337 @@ const Trade: React.FC = () => {
   const ownedSymbols = useMemo(() => Object.keys(storage.getHoldings()).filter(s => storage.getHoldings()[s].qty > 0), [holdingsVersion]);
   const ownedQty = storage.getHoldings()[sellSymbol]?.qty || 0;
 
+  // Journal trades for All Trades table
+  const [tick, setTick] = useState(0);
+  const tradesAll = useMemo(() => getTrades(), [tick]);
+
+  // Filters (mirroring Journal)
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    strategy: '',
+    instrument: '',
+    status: 'all' as 'all' | 'win' | 'loss',
+    search: '',
+    year: String(new Date().getFullYear()),
+  });
+
+  const symbolsList = useMemo(
+    () => Array.from(new Set(tradesAll.map(t => t.instrument))).sort(),
+    [tradesAll]
+  );
+  const strategiesList = useMemo(
+    () => Array.from(new Set(tradesAll.map(t => t.strategy || ''))).filter(Boolean).sort(),
+    [tradesAll]
+  );
+
+  const filteredTrades = useMemo(() => {
+    return tradesAll.filter(t => {
+      const d = new Date(t.date).getTime();
+      if (filters.dateFrom) {
+        const f = new Date(filters.dateFrom).getTime();
+        if (d < f) return false;
+      }
+      if (filters.dateTo) {
+        const to = new Date(filters.dateTo).getTime();
+        if (d > to) return false;
+      }
+      if (filters.year) {
+        const y = new Date(t.date).getFullYear();
+        if (String(y) !== String(filters.year)) return false;
+      }
+      if (filters.strategy && (t.strategy || '') !== filters.strategy) return false;
+      if (filters.instrument && !t.instrument.toLowerCase().includes(filters.instrument.toLowerCase())) return false;
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const hay = [t.instrument, t.strategy || '', t.notes || '', t.entryReason || '', t.exitReason || '']
+          .join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (filters.status !== 'all') {
+        const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+        const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+        if (filters.status === 'win' && pnl < 0) return false;
+        if (filters.status === 'loss' && pnl >= 0) return false;
+      }
+      return true;
+    });
+  }, [tradesAll, filters]);
+  // Auto-refresh when trades change in this tab or another tab
+  useEffect(() => {
+    const onChange = () => setTick(v => v + 1);
+    window.addEventListener('trades_changed' as any, onChange);
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'trades_v1') onChange();
+    });
+    return () => {
+      window.removeEventListener('trades_changed' as any, onChange);
+      window.removeEventListener('storage', onChange as any);
+    };
+  }, []);
+  type SortKey = 'date'|'instrument'|'side'|'entryPrice'|'exitPrice'|'quantity'|'pnl';
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc'|'desc' }>({ key: 'date', dir: 'desc' });
+  const sorted = useMemo(() => {
+    const arr = [...filteredTrades];
+    const cmp = (a: JournalTrade, b: JournalTrade) => {
+      const dir = sort.dir === 'asc' ? 1 : -1;
+      const pnlA = (a.exitPrice - a.entryPrice) * (a.side === 'Buy' || a.side === 'Long' ? 1 : -1) * a.quantity;
+      const pnlB = (b.exitPrice - b.entryPrice) * (b.side === 'Buy' || b.side === 'Long' ? 1 : -1) * b.quantity;
+      const val = (() => {
+        switch (sort.key) {
+          case 'date': return new Date(a.date).getTime() - new Date(b.date).getTime();
+          case 'instrument': return a.instrument.localeCompare(b.instrument);
+          case 'side': return String(a.side).localeCompare(String(b.side));
+          case 'entryPrice': return a.entryPrice - b.entryPrice;
+          case 'exitPrice': return a.exitPrice - b.exitPrice;
+          case 'quantity': return a.quantity - b.quantity;
+          case 'pnl': return pnlA - pnlB;
+        }
+      })() as number;
+      return val * dir;
+    };
+    arr.sort(cmp);
+    return arr;
+  }, [filteredTrades, sort]);
+
+  const exportCSV = () => {
+    const csv = toCSV(filteredTrades);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trades_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Trade</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Buy or sell stocks. Transactions are stored locally.</p>
+          <h1 className="text-3xl font-bold text-slate-900">Trade</h1>
+          <p className="text-slate-600 mt-1">Buy or sell stocks. Transactions are stored locally.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={seedDemo} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Load Demo Data</button>
-          <button onClick={clearDemo} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">Clear</button>
+          <button onClick={seedDemo} className="btn bg-blue-600 text-white hover:bg-blue-700 shadow-sm subtle-hover">Load Demo</button>
+          <button onClick={clearDemo} className="btn bg-slate-100 text-slate-700 subtle-hover">Clear</button>
         </div>
       </div>
 
-      {/* Buy Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2"><ShoppingCart className="h-5 w-5"/> Purchase</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
-          <div className="lg:col-span-2">
-            <label className="text-sm text-slate-600 dark:text-slate-400">Stock Symbol</label>
-            <input value={buySymbol} onChange={(e) => setBuySymbol(e.target.value.toUpperCase())} list="symbols" placeholder="e.g., RELIANCE" className="mt-1 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100" />
-            <datalist id="symbols">
-              {symbols.map(s => (<option key={s} value={s} />))}
-            </datalist>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-sm text-slate-600 dark:text-slate-400">Company Name</label>
-            <div className="mt-1 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">{buyName || '-'}</div>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Quantity</label>
-            <input type="number" min={0} value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100" />
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Price per Share</label>
-            <input type="number" min={0} step={0.01} value={buyPrice} onChange={(e) => setBuyPrice(Number(e.target.value))} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100" />
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Real-time: ₹{(demoPrices[buySymbol]?.price ?? 0).toFixed(2)}</div>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Order Type</label>
-            <select value={buyOrderType} onChange={(e) => setBuyOrderType(e.target.value as OrderType)} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
-              {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Total Cost</label>
-            <div className="mt-1 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 flex items-center gap-1"><IndianRupee className="h-4 w-4"/> {isFinite(totalBuy) ? `₹${totalBuy.toFixed(2)}` : '-'}</div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-4">
-          <label className="inline-flex items-center gap-2 select-none">
-            <input type="checkbox" checked={addToPortfolio} onChange={(e) => setAddToPortfolio(e.target.checked)} />
-            <span className="text-slate-700 dark:text-slate-200">Add to Portfolio</span>
+      {/* Top controls (like Journal) */}
+      <section className="surface-card p-4 space-y-3 hover:bg-slate-50 hover:shadow-sm transition-colors">
+        <div className="flex flex-col md:flex-row gap-3">
+          <label className="text-sm flex-1">
+            <span className="block mb-1 text-slate-600">Search symbols, strategies, notes</span>
+            <input
+              value={filters.search}
+              onChange={e => setFilters(s => ({ ...s, search: e.target.value }))}
+              placeholder="e.g., RELIANCE breakout ..."
+              className="input"
+            />
           </label>
-          <button disabled={!buySymbol || buyQty <= 0 || buyPrice <= 0} onClick={doBuy} className="px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4"/> Buy
+          <label className="text-sm md:w-64">
+            <span className="block mb-1 text-slate-600">Date from</span>
+            <input type="date" value={filters.dateFrom} onChange={e => setFilters(s => ({ ...s, dateFrom: e.target.value }))} className="input" />
+          </label>
+          <label className="text-sm md:w-64">
+            <span className="block mb-1 text-slate-600">Date to</span>
+            <input type="date" value={filters.dateTo} onChange={e => setFilters(s => ({ ...s, dateTo: e.target.value }))} className="input" />
+          </label>
+          <div className="self-start -mt-1 md:-mt-2 flex items-center gap-2">
+            <button onClick={seedDemo} className="btn-primary">Load Demo Data</button>
+            <button onClick={clearDemo} className="btn-outline-danger">Clear Data</button>
+            <button
+              onClick={() => {
+                setDraftDate(new Date().toISOString().slice(0,16));
+                setShowFormModal(true);
+              }}
+              className="btn-secondary"
+            >
+              + Add Trading Day
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <Select
+            label="All Results"
+            value={filters.status}
+            onChange={v => setFilters(s => ({ ...s, status: v as any }))}
+            options={[
+              { label: 'All Results', value: 'all' },
+              { label: 'Wins', value: 'win' },
+              { label: 'Losses', value: 'loss' },
+            ]}
+          />
+          <Select
+            label="All Symbols"
+            value={filters.instrument}
+            onChange={v => setFilters(s => ({ ...s, instrument: v }))}
+            options={[{ label: 'All Symbols', value: '' }, ...symbolsList.map(s => ({ label: s, value: s }))]}
+          />
+          <Select
+            label="All Strategies"
+            value={filters.strategy}
+            onChange={v => setFilters(s => ({ ...s, strategy: v }))}
+            options={[{ label: 'All Strategies', value: '' }, ...strategiesList.map(s => ({ label: s, value: s }))]}
+          />
+          <label className="text-sm">
+            <span className="block mb-1 text-slate-600">Year</span>
+            <input
+              type="number"
+              value={filters.year}
+              onChange={e => setFilters(s => ({ ...s, year: e.target.value }))}
+              className="input"
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* Tabs */}
+      <div className="flex items-center justify-between">
+        <div className="inline-flex bg-slate-100 rounded-lg p-1">
+          <button
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${activeTab === 'BUY' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
+            onClick={() => setActiveTab('BUY')}
+          >
+            <span className="inline-flex items-center gap-2"><ShoppingCart className="h-4 w-4"/> Buy</span>
           </button>
+          <button
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${activeTab === 'SELL' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
+            onClick={() => setActiveTab('SELL')}
+          >
+            <span className="inline-flex items-center gap-2"><TrendingUp className="h-4 w-4"/> Sell</span>
+          </button>
+        </div>
+        <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
+          <ArrowRightLeft className="h-4 w-4"/>
+          <span>Last price • {activeTab === 'BUY' ? buySymbol : sellSymbol}: ₹{(demoPrices[activeTab === 'BUY' ? buySymbol : sellSymbol]?.price ?? 0).toFixed(2)}</span>
         </div>
       </div>
 
-      {/* Sell Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white flex items-center gap-2"><TrendingUp className="h-5 w-5"/> Sell</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
-          <div className="lg:col-span-2">
-            <label className="text-sm text-slate-600 dark:text-slate-400">Stock Symbol</label>
-            <select value={sellSymbol} onChange={(e) => setSellSymbol(e.target.value)} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
-              {ownedSymbols.length ? ownedSymbols.map(s => <option key={s} value={s}>{s}</option>) : symbols.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="lg:col-span-2">
-            <label className="text-sm text-slate-600 dark:text-slate-400">Company Name</label>
-            <div className="mt-1 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">{sellName || '-'}</div>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Quantity to Sell</label>
-            <input type="number" min={0} max={ownedQty} value={sellQty} onChange={(e) => setSellQty(Number(e.target.value))} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100" />
-            <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Owned: {ownedQty}</div>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Current Price</label>
-            <input type="number" min={0} step={0.01} value={sellPrice} onChange={(e) => setSellPrice(Number(e.target.value))} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100" />
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Order Type</label>
-            <select value={sellOrderType} onChange={(e) => setSellOrderType(e.target.value as OrderType)} className="mt-1 w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100">
-              {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600 dark:text-slate-400">Sale Amount</label>
-            <div className="mt-1 w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 flex items-center gap-1"><IndianRupee className="h-4 w-4"/> {isFinite(totalSell) ? `₹${totalSell.toFixed(2)}` : '-'}</div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-4">
-          <button onClick={() => setSellQty(ownedQty)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">Sell All</button>
-          <button disabled={sellQty <= 0 || sellQty > ownedQty} onClick={doSell} className="px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4"/> Sell
-          </button>
-        </div>
+      {/* Card */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm card-appear subtle-hover">
+        {activeTab === 'BUY' ? (
+          <>
+            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><ShoppingCart className="h-5 w-5"/> Purchase</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+              <div className="lg:col-span-2">
+                <label className="text-sm text-slate-600">Stock Symbol</label>
+                <input value={buySymbol} onChange={(e) => setBuySymbol(e.target.value.toUpperCase())} list="symbols" placeholder="e.g., RELIANCE" className="mt-1 input-muted" />
+                <datalist id="symbols">
+                  {symbols.map(s => (<option key={s} value={s} />))}
+                </datalist>
+              </div>
+              <div className="lg:col-span-2">
+                <label className="text-sm text-slate-600">Company Name</label>
+                <div className={`mt-1 ${buyShimmer ? 'shimmer' : 'input-muted'}`}>{buyName || '-'}</div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Quantity</label>
+                <input type="number" min={0} value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} className="mt-1 input" />
+                <div className="mt-2 flex gap-2">
+                  {[1,5,10,25].map(q => (
+                    <button key={q} onClick={() => setBuyQty(q)} className="chip subtle-hover">x{q}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Price per Share</label>
+                <div className="mt-1 relative">
+                  <span className="money-prefix"><IndianRupee className="h-4 w-4"/></span>
+                  <input type="number" min={0} step={0.01} value={buyPrice} onChange={(e) => setBuyPrice(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Real-time: ₹{(demoPrices[buySymbol]?.price ?? 0).toFixed(2)}</div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Order Type</label>
+                <select value={buyOrderType} onChange={(e) => setBuyOrderType(e.target.value as OrderType)} className="mt-1 input">
+                  {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Total Cost</label>
+                <div className={`mt-1 ${buyShimmer ? 'shimmer' : 'input-muted'} flex items-center gap-1`}><IndianRupee className="h-4 w-4"/> {isFinite(totalBuy) ? `₹${totalBuy.toFixed(2)}` : '-'}</div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <label className="inline-flex items-center gap-2 select-none">
+                <input
+                  type="checkbox"
+                  checked={addToPortfolio}
+                  onChange={(e) => setAddToPortfolio(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                />
+                <span className="text-slate-700">Add to Portfolio</span>
+              </label>
+              <button disabled={!buySymbol || buyQty <= 0 || buyPrice <= 0} onClick={doBuy} className={`btn bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${(!buySymbol || buyQty <= 0 || buyPrice <= 0) ? '' : 'pulse-soft'}`}>
+                <CheckCircle2 className="h-4 w-4"/> Buy
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><TrendingUp className="h-5 w-5"/> Sell</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+              <div className="lg:col-span-2">
+                <label className="text-sm text-slate-600">Stock Symbol</label>
+                <select value={sellSymbol} onChange={(e) => setSellSymbol(e.target.value)} className="mt-1 input">
+                  {ownedSymbols.length ? ownedSymbols.map(s => <option key={s} value={s}>{s}</option>) : symbols.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="lg:col-span-2">
+                <label className="text-sm text-slate-600">Company Name</label>
+                <div className={`mt-1 ${sellShimmer ? 'shimmer' : 'input-muted'}`}>{sellName || '-'}</div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Quantity to Sell</label>
+                <input type="number" min={0} max={ownedQty} value={sellQty} onChange={(e) => setSellQty(Number(e.target.value))} className="mt-1 input" />
+                <div className="mt-2 flex gap-2">
+                  {[1,5,10].map(q => (
+                    <button key={q} onClick={() => setSellQty(Math.min(ownedQty, q))} className="chip subtle-hover">x{q}</button>
+                  ))}
+                  <button onClick={() => setSellQty(ownedQty)} className="chip subtle-hover">Max</button>
+                </div>
+                <div className="text-xs text-slate-500 mt-1">Owned: {ownedQty}</div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Current Price</label>
+                <div className="mt-1 relative">
+                  <span className="money-prefix"><IndianRupee className="h-4 w-4"/></span>
+                  <input type="number" min={0} step={0.01} value={sellPrice} onChange={(e) => setSellPrice(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Order Type</label>
+                <select value={sellOrderType} onChange={(e) => setSellOrderType(e.target.value as OrderType)} className="mt-1 input">
+                  {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-slate-600">Sale Amount</label>
+                <div className={`mt-1 ${sellShimmer ? 'shimmer' : 'input-muted'} flex items-center gap-1`}><IndianRupee className="h-4 w-4"/> {isFinite(totalSell) ? `₹${totalSell.toFixed(2)}` : '-'}</div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <button onClick={() => setSellQty(ownedQty)} className="btn bg-slate-100 text-slate-700 subtle-hover">Sell All</button>
+              <button disabled={sellQty <= 0 || sellQty > ownedQty} onClick={doSell} className={`btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${(sellQty <= 0 || sellQty > ownedQty) ? '' : 'pulse-soft'}`}>
+                <CheckCircle2 className="h-4 w-4"/> Sell
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Confirmation Dialog */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Confirm {showConfirm.action === 'BUY' ? 'Purchase' : 'Sale'}</h3>
-            <p className="text-slate-700 dark:text-slate-300 text-sm">{showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹{Number(showConfirm.payload.price).toFixed(2)} • {showConfirm.payload.orderType}</p>
+          <div className="w-full max-w-md rounded-2xl bg-white/90 backdrop-blur border border-slate-200 p-6 shadow-xl modal-appear">
+            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm {showConfirm.action === 'BUY' ? 'Purchase' : 'Sale'}</h3>
+            <p className="text-slate-700 text-sm">{showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹{Number(showConfirm.payload.price).toFixed(2)} • {showConfirm.payload.orderType}</p>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowConfirm(null)} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">Cancel</button>
-              <button onClick={confirm} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Confirm</button>
+              <button onClick={() => setShowConfirm(null)} className="btn bg-slate-100 text-slate-700 subtle-hover">Cancel</button>
+              <button onClick={confirm} className="btn bg-blue-600 text-white hover:bg-blue-700 subtle-hover">Confirm</button>
             </div>
           </div>
         </div>
@@ -295,13 +539,249 @@ const Trade: React.FC = () => {
       {/* Success Toast */}
       {success && (
         <div className="fixed bottom-6 right-6 z-50">
-          <div className="px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-lg flex items-center gap-2">
+          <div className="px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-lg flex items-center gap-2 toast-slide">
             <CheckCircle2 className="h-5 w-5"/> {success}
           </div>
         </div>
       )}
+
+      {/* Journal-style Trade Form Modal */}
+      {showFormModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
+          <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
+          <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900">Add Trading Day</h3>
+                <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
+              </div>
+              <div className="p-4">
+                <TradeQuickForm
+                  initialDate={draftDate}
+                  onSaved={() => {
+                    setTick(v => v + 1);
+                    setShowFormModal(false);
+                    setSuccess('Trade saved');
+                    setTimeout(() => setSuccess(''), 2000);
+                  }}
+                  onCancel={() => setShowFormModal(false)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* All Trades from Journal */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm card-appear subtle-hover">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xl font-semibold text-slate-900">All Trades</h2>
+          <button onClick={() => setTick(v => v + 1)} className="btn bg-slate-100 text-slate-700 subtle-hover">Refresh</button>
+        </div>
+        <div className="flex justify-end mb-3">
+          <button onClick={exportCSV} className="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/40 subtle-hover">Export CSV</button>
+        </div>
+        <div className="overflow-auto no-scrollbar max-h-[70vh] overscroll-contain">
+          <table className="min-w-full text-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50/80 backdrop-blur-sm">
+              <tr className="text-left border-b border-slate-200">
+                {(['Date','Instrument','Side','Entry','Exit','Qty','P&L','Strategy','Tags','Notes'] as const).map((label, idx) => {
+                  const keyMap: Record<number, SortKey | undefined> = {0:'date',1:'instrument',2:'side',3:'entryPrice',4:'exitPrice',5:'quantity',6:'pnl'};
+                  const key = keyMap[idx];
+                  return (
+                    <th key={label} className="py-2 pr-4">
+                      {key ? (
+                        <button
+                          className="inline-flex items-center gap-1 text-slate-700 hover:text-slate-900"
+                          onClick={() => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))}
+                        >
+                          <span>{label}</span>
+                          <span className={`text-xs ${sort.key === key ? 'opacity-100' : 'opacity-30'}`}>
+                            {sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '▲'}
+                          </span>
+                        </button>
+                      ) : (
+                        <span>{label}</span>
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(t => {
+                const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+                const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                return (
+                  <tr key={t.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50 hover:bg-slate-100/80 transition-colors">
+                    <td className="py-2 pr-4 whitespace-nowrap">{new Date(t.date).toLocaleString()}</td>
+                    <td className="py-2 pr-4">{t.instrument}</td>
+                    <td className="py-2 pr-4">{t.side}</td>
+                    <td className="py-2 pr-4">{t.entryPrice}</td>
+                    <td className="py-2 pr-4">{t.exitPrice}</td>
+                    <td className="py-2 pr-4">{t.quantity}</td>
+                    <td className="py-2 pr-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pnl>=0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        {pnl.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4">{t.strategy || '—'}</td>
+                    <td className="py-2 pr-4">
+                      <span className="flex flex-wrap gap-1">
+                        {(t.tags||[]).map((tag, i) => (
+                          <span key={`${tag}-${i}`} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs">{tag}</span>
+                        ))}
+                        {(!t.tags || !t.tags.length) && <span className="text-slate-400">—</span>}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-4 max-w-[300px] truncate" title={t.notes || ''}>{t.notes || '—'}</td>
+                  </tr>
+                );
+              })}
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={10} className="py-6">
+                    <div className="mx-auto max-w-lg text-center bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                      <div className="text-slate-700">No trades yet.</div>
+                      <div className="text-slate-500 text-sm mt-1">Add trades in the Journal page, then refresh.</div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 };
 
 export default Trade;
+
+// Inline quick form mirroring Journal's fields (simplified)
+type TradeRecord = JournalTrade;
+const TradeQuickForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?: () => void }>
+  = ({ onSaved, initialDate, onCancel }) => {
+  const [form, setForm] = useState<Partial<TradeRecord>>({
+    date: initialDate ?? new Date().toISOString().slice(0,16),
+    instrument: '', side: 'Buy', entryPrice: 0, exitPrice: 0, quantity: 1,
+    stopLoss: undefined, takeProfit: undefined, riskAmount: undefined, riskPercent: undefined,
+    strategy: '', entryReason: '', exitReason: '', notes: '', tags: [],
+  });
+  const [fileName, setFileName] = useState<string>('');
+
+  const set = (k: keyof TradeRecord, v: any) => setForm(s => ({ ...s, [k]: v }));
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.date || !form.instrument) return;
+    const id = Math.random().toString(36).slice(2,9);
+    const trade: TradeRecord = {
+      id,
+      date: form.date!,
+      exitDate: form.exitDate,
+      instrument: form.instrument!,
+      side: (form.side as any) ?? 'Buy',
+      entryPrice: Number(form.entryPrice) || 0,
+      exitPrice: Number(form.exitPrice) || 0,
+      quantity: Number(form.quantity) || 1,
+      stopLoss: form.stopLoss != null && form.stopLoss !== undefined ? Number(form.stopLoss) : undefined,
+      takeProfit: form.takeProfit != null && form.takeProfit !== undefined ? Number(form.takeProfit) : undefined,
+      riskAmount: form.riskAmount != null && form.riskAmount !== undefined ? Number(form.riskAmount) : undefined,
+      riskPercent: form.riskPercent != null && form.riskPercent !== undefined ? Number(form.riskPercent) : undefined,
+      strategy: form.strategy || '',
+      entryReason: form.entryReason || '',
+      exitReason: form.exitReason || '',
+      screenshotName: fileName || undefined,
+      tags: form.tags || [],
+      notes: form.notes || '',
+    };
+    addTrade(trade);
+    // Inform other tabs/pages
+    window.dispatchEvent(new CustomEvent('trades_changed'));
+    onSaved();
+  };
+
+  return (
+    <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-4 gap-3 surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Date & Time</span>
+        <input type="datetime-local" value={form.date || ''} onChange={e => set('date', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Exit Date</span>
+        <input type="datetime-local" value={form.exitDate || ''} onChange={e => set('exitDate', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Instrument</span>
+        <input value={form.instrument || ''} onChange={e => set('instrument', e.target.value)} className="input" />
+      </label>
+      <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
+
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Entry Price</span>
+        <input type="number" value={String(form.entryPrice ?? '')} onChange={e => set('entryPrice', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Exit Price</span>
+        <input type="number" value={String(form.exitPrice ?? '')} onChange={e => set('exitPrice', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Quantity</span>
+        <input type="number" value={String(form.quantity ?? '')} onChange={e => set('quantity', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Stop-Loss</span>
+        <input type="number" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input" />
+      </label>
+
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Take-Profit</span>
+        <input type="number" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Risk ($)</span>
+        <input type="number" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Risk (%)</span>
+        <input type="number" value={String(form.riskPercent ?? '')} onChange={e => set('riskPercent', e.target.value)} className="input" />
+      </label>
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Strategy</span>
+        <input value={form.strategy || ''} onChange={e => set('strategy', e.target.value)} className="input" />
+      </label>
+
+      <label className="md:col-span-2 text-sm">
+        <span className="block mb-1 text-slate-600">Reason for Entry</span>
+        <textarea value={form.entryReason || ''} onChange={e => set('entryReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
+      </label>
+      <label className="md:col-span-2 text-sm">
+        <span className="block mb-1 text-slate-600">Reason for Exit</span>
+        <textarea value={form.exitReason || ''} onChange={e => set('exitReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
+      </label>
+
+      <label className="md:col-span-3 text-sm">
+        <span className="block mb-1 text-slate-600">Notes</span>
+        <input value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      </label>
+
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Tags (comma separated)</span>
+        <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+      </label>
+
+      <label className="text-sm">
+        <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
+        <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
+        {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
+      </label>
+
+      <div className="md:col-span-4 flex justify-end gap-2">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
+        )}
+        <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white">Save Trade</button>
+      </div>
+    </form>
+  );
+};

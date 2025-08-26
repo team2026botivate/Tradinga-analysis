@@ -35,14 +35,14 @@ const Dashboard: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Dashboard</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Welcome back, John. Here's your market overview.</p>
+          <h1 className="heading">Dashboard</h1>
+          <p className="subheading mt-1">Welcome back, John. Here's your market overview.</p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-slate-600 dark:text-slate-400">Market Status</p>
+          <p className="text-sm text-slate-600">Market Status</p>
           <div className="flex items-center space-x-2 mt-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-green-600 font-semibold">Markets Open</span>
+            <div className="w-2 h-2 bg-success-600 rounded-full animate-pulse"></div>
+            <span className="text-success-700 font-semibold">Markets Open</span>
           </div>
         </div>
       </div>
@@ -52,19 +52,19 @@ const Dashboard: React.FC = () => {
         {portfolioStats.map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <div key={index} className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all duration-200">
+            <div key={index} className="surface-card p-6 hover:shadow-md transition-all duration-200 subtle-hover">
               <div className="flex items-center justify-between">
-                <div className="p-3 bg-gradient-to-r from-blue-500 to-violet-500 rounded-xl">
+                <div className="p-3 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl">
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
-                  <p className="text-sm text-green-600">{stat.change}</p>
+                  <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                  <p className="text-sm text-success-700">{stat.change}</p>
                 </div>
               </div>
               <div className="mt-4">
-                <h3 className="font-semibold text-slate-800 dark:text-slate-200">{stat.title}</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">{stat.percentage}</p>
+                <h3 className="font-semibold text-slate-800">{stat.title}</h3>
+                <p className="text-sm text-slate-600">{stat.percentage}</p>
               </div>
             </div>
           );
@@ -72,25 +72,25 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Market Indices */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Market Indices</h2>
+      <div className="surface-card p-6">
+        <h2 className="text-xl font-bold text-slate-900 mb-4">Market Indices</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {marketIndices.map((index, i) => (
-            <div key={i} className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl hover:shadow-md transition-all duration-200">
+            <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-slate-800 dark:text-slate-200">{index.name}</h3>
+                <h3 className="font-semibold text-slate-800">{index.name}</h3>
                 {index.trend === 'up' ? (
-                  <ArrowUpRight className="h-5 w-5 text-green-500" />
+                  <ArrowUpRight className="h-5 w-5 text-success-600" />
                 ) : (
-                  <ArrowDownRight className="h-5 w-5 text-red-500" />
+                  <ArrowDownRight className="h-5 w-5 text-danger-600" />
                 )}
               </div>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{index.value}</p>
+              <p className="text-2xl font-bold text-slate-900">{index.value}</p>
               <div className="flex items-center space-x-2 mt-2">
-                <span className={`text-sm font-medium ${index.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`text-sm font-medium ${index.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
                   {index.change}
                 </span>
-                <span className={`text-sm ${index.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`text-sm ${index.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
                   {index.percentage}
                 </span>
               </div>
@@ -101,23 +101,23 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Movers */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Top Movers</h2>
+        <div className="surface-card p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Top Movers</h2>
           <div className="space-y-3">
             {topMovers.map((stock, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-700 rounded-xl hover:shadow-md transition-all duration-200">
+              <div key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors">
                 <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-violet-500 rounded-lg flex items-center justify-center">
+                  <div className="w-10 h-10 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center">
                     <span className="text-white font-bold text-sm">{stock.symbol.charAt(0)}</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800 dark:text-slate-200">{stock.symbol}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{stock.name}</p>
+                    <p className="font-semibold text-slate-800">{stock.symbol}</p>
+                    <p className="text-sm text-slate-600">{stock.name}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-slate-900 dark:text-white">{stock.price}</p>
-                  <p className={`text-sm font-medium ${stock.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                  <p className="font-semibold text-slate-900">{stock.price}</p>
+                  <p className={`text-sm font-medium ${stock.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
                     {stock.change}
                   </p>
                 </div>
@@ -127,8 +127,8 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Recent News */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Market News</h2>
+        <div className="surface-card p-6">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Market News</h2>
           <div className="space-y-4">
             {[
               {
@@ -152,9 +152,9 @@ const Dashboard: React.FC = () => {
                 source: "CoinDesk"
               }
             ].map((news, index) => (
-              <div key={index} className="p-3 bg-slate-50 dark:bg-slate-700 rounded-xl hover:shadow-md transition-all duration-200 cursor-pointer">
-                <h3 className="font-semibold text-slate-800 dark:text-slate-200 mb-1">{news.title}</h3>
-                <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+              <div key={index} className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors cursor-pointer">
+                <h3 className="font-semibold text-slate-800 mb-1">{news.title}</h3>
+                <div className="flex items-center justify-between text-sm text-slate-600">
                   <span>{news.source}</span>
                   <span>{news.time}</span>
                 </div>

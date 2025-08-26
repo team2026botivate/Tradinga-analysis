@@ -170,15 +170,15 @@ const ProfitLoss: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Profit & Loss</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">View realized and unrealized P&L</p>
+          <h1 className="text-3xl font-bold text-slate-900">Profit & Loss</h1>
+          <p className="text-slate-600 mt-1">View realized and unrealized P&L</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={seedDemo} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Load Demo</button>
-          <button onClick={clearDemo} className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">Clear</button>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+          <button onClick={clearDemo} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700">Clear</button>
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-700">
             <CalendarRange className="h-4 w-4"/>
-            <select value={range} onChange={(e) => setRange(e.target.value as Range)} className="bg-transparent outline-none text-slate-800 dark:text-slate-100">
+            <select value={range} onChange={(e) => setRange(e.target.value as Range)} className="bg-transparent outline-none text-slate-800">
               {ranges.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -189,43 +189,43 @@ const ProfitLoss: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-          <div className="text-sm text-slate-600 dark:text-slate-400">Total Realized Profit</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-sm text-slate-600">Total Realized Profit</div>
           <div className={`mt-2 text-2xl font-semibold ${realized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatINR(realized)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-          <div className="text-sm text-slate-600 dark:text-slate-400">Total Unrealized P/L</div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-sm text-slate-600">Total Unrealized P/L</div>
           <div className={`mt-2 text-2xl font-semibold ${unrealized >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatINR(unrealized)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
-          <div className="text-sm text-slate-600 dark:text-slate-400">Overview</div>
-          <div className="mt-2 flex items-center gap-2 text-slate-700 dark:text-slate-300">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-sm text-slate-600">Overview</div>
+          <div className="mt-2 flex items-center gap-2 text-slate-700">
             <PieChart className="h-5 w-5"/> {Object.keys(holdings).length} holdings
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold">Profit by Stock</div>
-        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-          <thead className="bg-slate-50 dark:bg-slate-700/50">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 text-slate-700 font-semibold">Profit by Stock</div>
+        <table className="min-w-full divide-y divide-slate-200">
+          <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Realized</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Unrealized</th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+          <tbody className="bg-white divide-y divide-slate-200">
             {Object.keys({ ...perStockUnrealized, ...perStockRealized }).map(sym => (
-              <tr key={sym} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                <td className="px-6 py-4 font-semibold text-slate-900 dark:text-white">{sym}</td>
+              <tr key={sym} className="hover:bg-slate-50">
+                <td className="px-6 py-4 font-semibold text-slate-900">{sym}</td>
                 <td className={`px-6 py-4 text-right ${ (perStockRealized[sym]||0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatINR(perStockRealized[sym] || 0)}</td>
                 <td className={`px-6 py-4 text-right ${ (perStockUnrealized[sym]||0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatINR(perStockUnrealized[sym] || 0)}</td>
               </tr>
             ))}
             {Object.keys({ ...perStockUnrealized, ...perStockRealized }).length === 0 && (
               <tr>
-                <td className="px-6 py-8 text-center text-slate-500 dark:text-slate-400" colSpan={3}>No P&L yet</td>
+                <td className="px-6 py-8 text-center text-slate-500" colSpan={3}>No P&L yet</td>
               </tr>
             )}
           </tbody>

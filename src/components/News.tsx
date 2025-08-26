@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import {
-  Newspaper,
   TrendingUp,
   Clock,
   ExternalLink,
   Search,
-  Filter,
   Bookmark,
   Share2
 } from 'lucide-react';
@@ -111,11 +109,11 @@ const News: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Market News</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-1">Stay updated with the latest financial news</p>
+          <h1 className="text-3xl font-bold text-slate-900">Market News</h1>
+          <p className="text-slate-600 mt-1">Stay updated with the latest financial news</p>
         </div>
         <div className="flex items-center space-x-3">
-          <button className="flex items-center space-x-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+          <button className="flex items-center space-x-2 px-4 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors">
             <Bookmark className="h-4 w-4" />
             <span>Saved</span>
           </button>
@@ -123,7 +121,7 @@ const News: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200">
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -132,7 +130,7 @@ const News: React.FC = () => {
               placeholder="Search news articles..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <div className="flex space-x-2 overflow-x-auto">
@@ -142,8 +140,8 @@ const News: React.FC = () => {
                 onClick={() => setSelectedCategory(category.id)}
                 className={`whitespace-nowrap px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
                   selectedCategory === category.id
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 {category.label}
@@ -154,25 +152,25 @@ const News: React.FC = () => {
       </div>
 
       {/* Top Stories */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200">
         <div className="flex items-center space-x-2 mb-4">
           <TrendingUp className="h-5 w-5 text-orange-500" />
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Trending Stories</h2>
+          <h2 className="text-xl font-bold text-slate-900">Trending Stories</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {topStories.map((article) => (
             <div key={article.id} className="group cursor-pointer">
-              <div className="aspect-video bg-slate-200 dark:bg-slate-700 rounded-xl mb-3 overflow-hidden">
+              <div className="aspect-video bg-slate-200 rounded-xl mb-3 overflow-hidden">
                 <img 
                   src={article.image} 
                   alt={article.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                 />
               </div>
-              <h3 className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors line-clamp-2">
+              <h3 className="font-semibold text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
                 {article.title}
               </h3>
-              <div className="flex items-center justify-between mt-2 text-sm text-slate-600 dark:text-slate-400">
+              <div className="flex items-center justify-between mt-2 text-sm text-slate-600">
                 <span>{article.source}</span>
                 <span>{article.publishTime}</span>
               </div>
@@ -184,10 +182,10 @@ const News: React.FC = () => {
       {/* News Feed */}
       <div className="space-y-4">
         {filteredNews.map((article) => (
-          <div key={article.id} className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all duration-200">
+          <div key={article.id} className="bg-white rounded-2xl p-6 border border-slate-200 hover:bg-slate-50 hover:shadow-sm transition-colors">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="md:w-48 flex-shrink-0">
-                <div className="aspect-video bg-slate-200 dark:bg-slate-700 rounded-xl overflow-hidden">
+                <div className="aspect-video bg-slate-200 rounded-xl overflow-hidden">
                   <img 
                     src={article.image} 
                     alt={article.title}
@@ -201,19 +199,19 @@ const News: React.FC = () => {
                   <div>
                     <div className="flex items-center space-x-2 mb-2">
                       {article.trending && (
-                        <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 dark:bg-orange-900/20 text-orange-600 rounded-full text-xs font-medium">
+                        <span className="flex items-center space-x-1 px-2 py-1 bg-orange-100 text-orange-600 rounded-full text-xs font-medium">
                           <TrendingUp className="h-3 w-3" />
                           <span>Trending</span>
                         </span>
                       )}
-                      <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-full text-xs font-medium capitalize">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-medium capitalize">
                         {article.category}
                       </span>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 dark:text-white hover:text-blue-600 transition-colors cursor-pointer">
+                    <h3 className="text-xl font-bold text-slate-900 hover:text-blue-600 transition-colors cursor-pointer">
                       {article.title}
                     </h3>
-                    <p className="text-slate-600 dark:text-slate-400 mt-2">
+                    <p className="text-slate-600 mt-2">
                       {article.summary}
                     </p>
                   </div>
@@ -221,23 +219,23 @@ const News: React.FC = () => {
                     <button 
                       className={`p-2 rounded-lg transition-colors ${
                         article.saved 
-                          ? 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20' 
-                          : 'text-slate-400 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/20'
+                          ? 'text-yellow-600 bg-yellow-100' 
+                          : 'text-slate-400 hover:text-yellow-600 hover:bg-yellow-100'
                       }`}
                     >
                       <Bookmark className="h-4 w-4" fill={article.saved ? 'currentColor' : 'none'} />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors">
                       <Share2 className="h-4 w-4" />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-colors">
+                    <button className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-100 transition-colors">
                       <ExternalLink className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 text-sm text-slate-600 dark:text-slate-400">
+                  <div className="flex items-center space-x-4 text-sm text-slate-600">
                     <div className="flex items-center space-x-1">
                       <span className="font-medium">{article.source}</span>
                       <span>•</span>
@@ -252,7 +250,7 @@ const News: React.FC = () => {
                   
                   <div className="flex flex-wrap gap-1">
                     {article.tags.slice(0, 3).map((tag, index) => (
-                      <span key={index} className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-md text-xs">
+                      <span key={index} className="px-2 py-1 bg-slate-100 text-slate-600 rounded-md text-xs">
                         #{tag}
                       </span>
                     ))}
@@ -266,7 +264,7 @@ const News: React.FC = () => {
 
       {/* Load More */}
       <div className="text-center">
-        <button className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors font-medium">
+        <button className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium">
           Load More Articles
         </button>
       </div>

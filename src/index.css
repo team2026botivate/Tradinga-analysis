@@ -7,7 +7,109 @@ html, body, #root {
   height: 100%;
 }
 
+/* Normalize native date/datetime inputs to match text inputs */
+@layer base {
+  input[type='date'],
+  input[type='datetime-local'],
+  input[type='time'],
+  input[type='number'] {
+    @apply w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 focus-ring;
+  }
+  /* Remove extra inner padding on WebKit */
+  input[type='date']::-webkit-datetime-edit,
+  input[type='datetime-local']::-webkit-datetime-edit {
+    padding: 0;
+  }
+  /* Make picker icon subtle and aligned */
+  
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    opacity: 0.7;
+    cursor: pointer;
+  }
+  input[type='date']:hover::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']:hover::-webkit-calendar-picker-indicator {
+    opacity: 1;
+  }
+}
+
 body {
   margin: 0; /* safety: Tailwind preflight already sets this but ensure */
   overflow-x: hidden; /* prevent horizontal scroll + white gutter */
 }
+
+/* Custom animations and helpers */
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRight {
+  0% { opacity: 0; transform: translateX(12px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes subtlePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.0); }
+  50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.08); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Components layer for convenience */
+@layer components {
+  .card-appear { animation: fadeInUp 280ms ease-out; }
+  .modal-appear { animation: scaleIn 200ms ease-out; }
+  .toast-slide { animation: slideInRight 220ms ease-out; }
+  .subtle-hover { @apply transition-all duration-200 hover:shadow-md hover:-translate-y-0.5; }
+  .tap-active { @apply active:scale-95; }
+  .chip { @apply px-2.5 py-1 rounded-full text-xs bg-slate-100 text-slate-700; }
+  .btn { @apply px-4 py-2 rounded-xl transition-all duration-200 tap-active; }
+  .focus-ring { @apply focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500/60; }
+  .money-prefix { @apply absolute inset-y-0 left-3 flex items-center text-slate-400; }
+  .input { @apply w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 focus-ring; }
+  .input-muted { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800; }
+  .pulse-soft { animation: subtlePulse 2s ease-in-out infinite; }
+  .shimmer {
+    background: linear-gradient(90deg, rgba(148,163,184,0.15) 25%, rgba(148,163,184,0.35) 37%, rgba(148,163,184,0.15) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.2s ease-in-out infinite;
+    @apply rounded-xl text-transparent select-none;
+  }
+
+  /* Modern glass styles */
+  .glass-card { @apply p-4 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md shadow-lg shadow-black/20; }
+  .glass-input { @apply w-full px-3 py-2 rounded-xl border border-white/20 bg-white/5 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40; }
+
+  /* Minimal professional surfaces & utilities */
+  .surface-card { @apply rounded-2xl border border-slate-200/60 bg-white shadow-sm; }
+  .container-page { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
+  .heading { @apply text-2xl md:text-3xl font-bold text-slate-900; }
+  .subheading { @apply text-slate-600; }
+  .muted { @apply text-slate-500; }
+  .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 focus-ring; }
+  .btn-secondary { @apply btn bg-slate-100 text-slate-700 hover:bg-slate-200 focus-ring; }
+  .btn-ghost { @apply btn text-slate-700 hover:bg-slate-100; }
+  .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700 focus-ring; }
+  .btn-outline-danger { @apply btn border border-red-300 text-red-700 hover:bg-red-50 focus-ring; }
+}
+
+/* A subtle background for the journal page */
+.journal-page {
+  background: radial-gradient(1200px 600px at -10% -10%, rgba(79,70,229,0.08), rgba(0,0,0,0)),
+              radial-gradient(900px 500px at 110% 10%, rgba(16,185,129,0.06), rgba(0,0,0,0));
+  padding: 0.5rem;
+  border-radius: 1rem;
+}
+
+/* Hide scrollbars but keep scrolling (sidebar, panels, etc.) */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

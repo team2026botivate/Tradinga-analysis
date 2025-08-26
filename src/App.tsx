@@ -1,17 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Menu } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
-import Watchlist from './components/Watchlist';
 import Analysis from './components/Analysis';
-import Screener from './components/Screener';
 import Portfolio from './components/Portfolio';
 import Calendar from './components/Calendar';
 import Settings from './components/Settings';
 import Login from './components/Login';
 import Trade from './components/Trade';
-import Transactions from './components/Transactions';
-import ProfitLoss from './components/ProfitLoss';
+import Journal from './components/Journal';
  
 
 function App() {
@@ -29,6 +26,18 @@ function App() {
     setIsAuthed(true);
   };
 
+  // Listen for app-wide navigation events (e.g., from Journal after saving a trade)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<string>;
+      if (ce.detail) {
+        setActiveTab(ce.detail);
+      }
+    };
+    window.addEventListener('navigate', handler as EventListener);
+    return () => window.removeEventListener('navigate', handler as EventListener);
+  }, []);
+
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_email');
@@ -40,20 +49,14 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />;
-      case 'watchlist':
-        return <Watchlist />;
+      case 'journal':
+        return <Journal />;
       case 'analysis':
         return <Analysis />;
-      case 'screener':
-        return <Screener />;
       case 'portfolio':
         return <Portfolio />;
       case 'trade':
         return <Trade />;
-      case 'transactions':
-        return <Transactions />;
-      case 'pnl':
-        return <ProfitLoss />;
       case 'calendar':
         return <Calendar />;
       case 'settings':
@@ -68,7 +71,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-white to-white dark:from-slate-900 dark:to-slate-800">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-brand-50 to-white">
       <div className="flex min-w-0">
         <Sidebar
           activeTab={activeTab}
@@ -85,13 +88,13 @@ function App() {
           />
         )}
 
-        <main className={`flex-1 min-w-0 transition-all duration-300 ml-0 ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
-          <div className="p-6 min-w-0">
+        <main className={`flex-1 min-w-0 transition-all duration-300 ml-0 overflow-y-auto no-scrollbar max-h-screen ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+          <div className="container-page py-6 min-w-0">
             {/* Mobile menu button */}
             <div className="md:hidden mb-4">
               <button
                 onClick={() => setSidebarCollapsed(false)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-700"
                 aria-label="Open menu"
               >
                 <Menu className="h-5 w-5" />

@@ -1,9 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard,
-  Eye,
   TrendingUp,
-  Filter,
   Briefcase,
   Settings,
   Menu,
@@ -11,8 +9,7 @@ import {
   User,
   LogOut,
   ArrowLeftRight,
-  Clock,
-  PieChart
+  BookOpen
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,12 +23,9 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'watchlist', label: 'Watchlist', icon: Eye },
+    { id: 'journal', label: 'Trade Journal', icon: BookOpen },
     { id: 'analysis', label: 'Analysis', icon: TrendingUp },
-    { id: 'screener', label: 'Screener', icon: Filter },
     { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
-    { id: 'transactions', label: 'Transactions', icon: Clock },
-    { id: 'pnl', label: 'Profit/Loss', icon: PieChart },
     { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
@@ -39,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
   return (
     <div
       className={
-        `fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 transition-all duration-300 z-50 flex flex-col ` +
+        `fixed left-0 top-0 h-full bg-white border-r border-slate-200 transition-all duration-300 z-50 flex flex-col overflow-y-auto no-scrollbar ` +
         // Mobile (default): slide-in drawer width 64, hidden when collapsed
         `${collapsed ? '-translate-x-full w-64' : 'translate-x-0 w-64'} ` +
         // md and up: always visible, width depends on collapsed state
@@ -47,18 +41,18 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
       }
     >
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+      <div className="flex items-center justify-between p-4 border-b border-slate-200">
         {!collapsed && (
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-violet-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-800 dark:text-white">TradeFlow</span>
+            <span className="text-xl font-bold text-slate-800">TradeFlow</span>
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          className="p-2 rounded-lg hover:bg-slate-100 transition-colors"
           aria-label="Toggle sidebar"
         >
           {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
@@ -66,15 +60,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
       </div>
 
       {/* User Profile */}
-      <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+      <div className="p-4 border-b border-slate-200">
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-gradient-to-r from-emerald-400 to-blue-500 rounded-full flex items-center justify-center">
+          <div className="w-10 h-10 bg-gradient-to-r from-secondary-600 to-primary-600 rounded-full flex items-center justify-center">
             <User className="h-5 w-5 text-white" />
           </div>
           {!collapsed && (
             <div>
-              <p className="font-semibold text-slate-800 dark:text-white">John Trader</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Pro Member</p>
+              <p className="font-semibold text-slate-800">John Trader</p>
+              <p className="text-sm text-slate-600">Pro Member</p>
             </div>
           )}
         </div>
@@ -93,8 +87,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
                   onClick={() => setActiveTab(item.id)}
                   className={`w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 ${
                     isActive
-                      ? 'bg-gradient-to-r from-blue-500 to-violet-500 text-white shadow-lg'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-gradient-to-r from-primary-600 to-secondary-600 text-white shadow-lg'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                   }`}
                 >
                   <Icon className="h-5 w-5" />
@@ -107,10 +101,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
       </nav>
 
       {/* Logout action */}
-      <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="p-4 border-t border-slate-200">
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-start space-x-3 p-3 rounded-xl text-red-600 hover:text-white hover:bg-red-500 transition-colors"
+          className="w-full flex items-center justify-start space-x-3 p-3 rounded-xl text-danger-700 hover:text-white hover:bg-danger-600 transition-colors"
         >
           <LogOut className="h-5 w-5" />
           {!collapsed && <span className="font-medium">Logout</span>}
