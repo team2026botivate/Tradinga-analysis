@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { addTrade, getTrades, toCSV, Trade as JournalTrade } from '../store/trades';
+import { getTrades, toCSV, Trade as JournalTrade } from '../store/trades';
 import Select from './ui/Select';
 import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft } from 'lucide-react';
 
@@ -556,12 +556,11 @@ const Trade: React.FC = () => {
                 <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
               </div>
               <div className="p-4">
-                <TradeQuickForm
+                <TradingDayForm
                   initialDate={draftDate}
                   onSaved={() => {
-                    setTick(v => v + 1);
                     setShowFormModal(false);
-                    setSuccess('Trade saved');
+                    setSuccess('Trading day added');
                     setTimeout(() => setSuccess(''), 2000);
                   }}
                   onCancel={() => setShowFormModal(false)}
@@ -655,133 +654,263 @@ const Trade: React.FC = () => {
   );
 };
 
-export default Trade;
+// ---------------- Trading Day Form (Popup) ----------------
+type TradingDayRecord = {
+  id: string;
+  date: string; // datetime-local
+  tradesCount: number;
+  symbols: string[];
+  result: 'profit' | 'loss' | 'breakeven';
+  netMtm: number; // before brokerage
+  brokerage: number;
+  strategies: string[];
+  notes?: string;
+  // single trade snapshot (optional)
+  instrument?: string;
+  side?: 'Buy'|'Sell'|'Long'|'Short';
+  entryPrice?: number;
+  exitPrice?: number;
+  quantity?: number;
+  strategy?: string;
+  tags?: string[];
+};
 
-// Inline quick form mirroring Journal's fields (simplified)
-type TradeRecord = JournalTrade;
-const TradeQuickForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?: () => void }>
-  = ({ onSaved, initialDate, onCancel }) => {
-  const [form, setForm] = useState<Partial<TradeRecord>>({
-    date: initialDate ?? new Date().toISOString().slice(0,16),
-    instrument: '', side: 'Buy', entryPrice: 0, exitPrice: 0, quantity: 1,
-    stopLoss: undefined, takeProfit: undefined, riskAmount: undefined, riskPercent: undefined,
-    strategy: '', entryReason: '', exitReason: '', notes: '', tags: [],
-  });
-  const [fileName, setFileName] = useState<string>('');
+const strategiesPreset = [
+  'Breakout','Reversal','Scalping','Trend Following','Swing Trading','Momentum',
+  'Mean Reversion','Gap Trading','News Based','Technical Analysis','Fundamental Analysis','Other'
+];
 
-  const set = (k: keyof TradeRecord, v: any) => setForm(s => ({ ...s, [k]: v }));
+const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCancel?: () => void }>
+  = ({ initialDate, onSaved, onCancel }) => {
+  const [date, setDate] = useState<string>(initialDate ?? new Date().toISOString().slice(0,16));
+  const [tradesCount, setTradesCount] = useState<number>(0);
+  const [symbols, setSymbols] = useState<string[]>([]);
+  const [symInput, setSymInput] = useState('');
+  const [result, setResult] = useState<'profit'|'loss'|'breakeven'>('profit');
+  const [netMtm, setNetMtm] = useState<number>(0);
+  const [brokerage, setBrokerage] = useState<number>(0.1);
+  const [strategies, setStrategies] = useState<string[]>([]);
+  const [customStrategy, setCustomStrategy] = useState('');
+  const [notes, setNotes] = useState('');
+  // Single-trade row fields
+  const [instrument, setInstrument] = useState('');
+  const [side, setSide] = useState<'Buy'|'Sell'|'Long'|'Short'>('Buy');
+  const [entryPrice, setEntryPrice] = useState<number>(0);
+  const [exitPrice, setExitPrice] = useState<number>(0);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [strategy, setStrategy] = useState('');
+  const [tagsStr, setTagsStr] = useState('');
+
+  const pnl = useMemo(() => {
+    const dir = side === 'Buy' || side === 'Long' ? 1 : -1;
+    const v = (exitPrice - entryPrice) * dir * (quantity || 0);
+    return isFinite(v) ? v : 0;
+  }, [entryPrice, exitPrice, quantity, side]);
+
+  const addSymbol = () => {
+    const v = symInput.trim().toUpperCase();
+    if (!v) return;
+    if (!symbols.includes(v)) setSymbols(prev => [...prev, v]);
+    setSymInput('');
+  };
+  const onSymKey: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addSymbol();
+    }
+  };
+  const toggleStrategy = (s: string) => {
+    setStrategies(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+  const addCustomStrategy = () => {
+    const v = customStrategy.trim();
+    if (!v) return;
+    if (!strategies.includes(v)) setStrategies(p => [...p, v]);
+    setCustomStrategy('');
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.date || !form.instrument) return;
-    const id = Math.random().toString(36).slice(2,9);
-    const trade: TradeRecord = {
-      id,
-      date: form.date!,
-      exitDate: form.exitDate,
-      instrument: form.instrument!,
-      side: (form.side as any) ?? 'Buy',
-      entryPrice: Number(form.entryPrice) || 0,
-      exitPrice: Number(form.exitPrice) || 0,
-      quantity: Number(form.quantity) || 1,
-      stopLoss: form.stopLoss != null && form.stopLoss !== undefined ? Number(form.stopLoss) : undefined,
-      takeProfit: form.takeProfit != null && form.takeProfit !== undefined ? Number(form.takeProfit) : undefined,
-      riskAmount: form.riskAmount != null && form.riskAmount !== undefined ? Number(form.riskAmount) : undefined,
-      riskPercent: form.riskPercent != null && form.riskPercent !== undefined ? Number(form.riskPercent) : undefined,
-      strategy: form.strategy || '',
-      entryReason: form.entryReason || '',
-      exitReason: form.exitReason || '',
-      screenshotName: fileName || undefined,
-      tags: form.tags || [],
-      notes: form.notes || '',
+    if (!date) return;
+    const rec: TradingDayRecord = {
+      id: Math.random().toString(36).slice(2,9),
+      date,
+      tradesCount: Number(tradesCount) || 0,
+      symbols,
+      result,
+      netMtm: Number(netMtm) || 0,
+      brokerage: Number(brokerage) || 0,
+      strategies,
+      notes: notes.trim() || undefined,
+      instrument: instrument || undefined,
+      side,
+      entryPrice: Number(entryPrice) || 0,
+      exitPrice: Number(exitPrice) || 0,
+      quantity: Number(quantity) || 0,
+      strategy: strategy || undefined,
+      tags: tagsStr.split(',').map(s=>s.trim()).filter(Boolean),
     };
-    addTrade(trade);
-    // Inform other tabs/pages
-    window.dispatchEvent(new CustomEvent('trades_changed'));
+    try {
+      const key = 'day_logs_v1';
+      const arr: TradingDayRecord[] = JSON.parse(localStorage.getItem(key) || '[]');
+      arr.unshift(rec);
+      localStorage.setItem(key, JSON.stringify(arr));
+    } catch {}
     onSaved();
   };
 
   return (
-    <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-4 gap-3 surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Date & Time</span>
-        <input type="datetime-local" value={form.date || ''} onChange={e => set('date', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Exit Date</span>
-        <input type="datetime-local" value={form.exitDate || ''} onChange={e => set('exitDate', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Instrument</span>
-        <input value={form.instrument || ''} onChange={e => set('instrument', e.target.value)} className="input" />
-      </label>
-      <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
-
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Entry Price</span>
-        <input type="number" value={String(form.entryPrice ?? '')} onChange={e => set('entryPrice', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Exit Price</span>
-        <input type="number" value={String(form.exitPrice ?? '')} onChange={e => set('exitPrice', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Quantity</span>
-        <input type="number" value={String(form.quantity ?? '')} onChange={e => set('quantity', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Stop-Loss</span>
-        <input type="number" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input" />
+    <form onSubmit={submit} className="space-y-5">
+      {/* Date */}
+      <label className="block text-sm">
+        <span className="block mb-1 text-slate-700">Trading Date *</span>
+        <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} className="input" />
       </label>
 
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Take-Profit</span>
-        <input type="number" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Risk ($)</span>
-        <input type="number" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Risk (%)</span>
-        <input type="number" value={String(form.riskPercent ?? '')} onChange={e => set('riskPercent', e.target.value)} className="input" />
-      </label>
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Strategy</span>
-        <input value={form.strategy || ''} onChange={e => set('strategy', e.target.value)} className="input" />
+      {/* Number of trades */}
+      <label className="block text-sm">
+        <span className="block mb-1 text-slate-700">Number of Trades</span>
+        <input type="number" value={tradesCount} onChange={e=>setTradesCount(Number(e.target.value))} className="input" />
       </label>
 
-      <label className="md:col-span-2 text-sm">
-        <span className="block mb-1 text-slate-600">Reason for Entry</span>
-        <textarea value={form.entryReason || ''} onChange={e => set('entryReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
-      </label>
-      <label className="md:col-span-2 text-sm">
-        <span className="block mb-1 text-slate-600">Reason for Exit</span>
-        <textarea value={form.exitReason || ''} onChange={e => set('exitReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
+      {/* Symbols tag input */}
+      <div className="space-y-2">
+        <div className="text-sm text-slate-700">Symbols Traded *</div>
+        <div className="flex flex-wrap gap-2">
+          {symbols.map(s => (
+            <span key={s} className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs">
+              {s}
+              <button type="button" onClick={()=>setSymbols(prev=>prev.filter(x=>x!==s))} className="ml-1 text-slate-500 hover:text-red-600">×</button>
+            </span>
+          ))}
+        </div>
+        <input
+          value={symInput}
+          onChange={e=>setSymInput(e.target.value)}
+          onKeyDown={onSymKey}
+          placeholder="Type symbol name (e.g., TCS, GOLD)..."
+          className="input"
+        />
+        <div className="text-xs text-slate-500">Press Enter or comma to add.</div>
+      </div>
+
+      {/* Single trade snapshot (optional) */}
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-slate-800">Trade Snapshot (optional)</div>
+        <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Instrument</span>
+            <input value={instrument} onChange={e=>setInstrument(e.target.value)} className="input" placeholder="e.g., RELIANCE" />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Side</span>
+            <select value={side} onChange={e=>setSide(e.target.value as any)} className="input">
+              {['Buy','Sell','Long','Short'].map(s=> <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Entry</span>
+            <input type="number" step={0.01} value={entryPrice} onChange={e=>setEntryPrice(Number(e.target.value))} className="input" />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Exit</span>
+            <input type="number" step={0.01} value={exitPrice} onChange={e=>setExitPrice(Number(e.target.value))} className="input" />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Qty</span>
+            <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="input" />
+          </label>
+          <div className="text-xs md:col-span-1">
+            <div className="mb-1 text-slate-600">P&L</div>
+            <div className={`px-3 py-2 rounded-xl border text-center ${pnl>=0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{pnl.toFixed(2)}</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Strategy</span>
+            <input value={strategy} onChange={e=>setStrategy(e.target.value)} className="input" placeholder="e.g., Breakout" />
+          </label>
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Tags</span>
+            <input value={tagsStr} onChange={e=>setTagsStr(e.target.value)} className="input" placeholder="comma separated" />
+          </label>
+        </div>
+      </div>
+
+      {/* Trading Result segmented */}
+      <div className="space-y-2">
+        <div className="text-sm text-slate-700">Trading Result</div>
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
+            {k:'loss', label:'Loss', cls:'border-red-600 text-red-700', bg:'bg-red-600 text-white'},
+            {k:'breakeven', label:'Breakeven', cls:'border-slate-400 text-slate-700', bg:'bg-slate-700 text-white'},
+          ].map((b:any) => (
+            <button
+              key={b.k}
+              type="button"
+              onClick={()=>setResult(b.k)}
+              className={`px-4 py-2 rounded-xl border ${result===b.k ? b.bg : `bg-white ${b.cls}`}`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Net MTM and Brokerage */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label className="block text-sm">
+          <span className="block mb-1 text-slate-700">Net MTM Amount *</span>
+          <div className="relative">
+            <span className="money-prefix">₹</span>
+            <input type="number" step={0.01} value={netMtm} onChange={e=>setNetMtm(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+          </div>
+          <div className="text-xs text-slate-500 mt-1">Enter the gross profit amount (before brokerage deduction)</div>
+        </label>
+        <label className="block text-sm">
+          <span className="block mb-1 text-slate-700">Brokerage Charges *</span>
+          <div className="relative">
+            <span className="money-prefix">₹</span>
+            <input type="number" step={0.01} value={brokerage} onChange={e=>setBrokerage(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+          </div>
+          <div className="text-xs text-slate-500 mt-1">Enter total charges including brokerage, taxes, and other fees</div>
+        </label>
+      </div>
+
+      {/* Strategies */}
+      <div className="space-y-2">
+        <div className="text-sm text-slate-700">Strategies Used</div>
+        <div className="flex flex-wrap gap-2">
+          {strategiesPreset.map(s => (
+            <button
+              key={s}
+              type="button"
+              onClick={()=>toggleStrategy(s)}
+              className={`px-3 py-1.5 rounded-full text-sm border ${strategies.includes(s) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
+            >{s}</button>
+          ))}
+          <div className="inline-flex items-center gap-2">
+            <input value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} placeholder="Add custom strategy..." className="px-3 py-1.5 rounded-full border border-slate-300 text-sm" />
+            <button type="button" onClick={addCustomStrategy} className="btn-secondary text-sm">Add</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <label className="block text-sm">
+        <span className="block mb-1 text-slate-700">Notes (Optional)</span>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
       </label>
 
-      <label className="md:col-span-3 text-sm">
-        <span className="block mb-1 text-slate-600">Notes</span>
-        <input value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-      </label>
-
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Tags (comma separated)</span>
-        <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-      </label>
-
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
-        <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
-        {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
-      </label>
-
-      <div className="md:col-span-4 flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn bg-slate-100 text-slate-700 subtle-hover">Cancel</button>
         )}
-        <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white">Save Trade</button>
+        <button type="submit" className="btn bg-emerald-600 text-white hover:bg-emerald-700">Add Trading Day</button>
       </div>
     </form>
   );
 };
+
+export default Trade;

@@ -210,9 +210,9 @@ const Journal: React.FC = () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
           <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
           <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
-              <div className="flex items-center justify-between p-4 border-b border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900">Add Trading Day</h3>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+                <h3 className="text-lg font-semibold text-slate-900">Add Trade</h3>
                 <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
               </div>
               <div className="p-4">
@@ -330,12 +330,19 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?
     strategy: '', entryReason: '', exitReason: '', notes: '', tags: [],
   });
   const [fileName, setFileName] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   const set = (k: keyof Trade, v: any) => setForm(s => ({ ...s, [k]: v }));
 
+  const strategiesPreset = [
+    'Breakout','Reversal','Scalping','Trend Following','Swing Trading','Momentum',
+    'Mean Reversion','Gap Trading','News Based','Technical Analysis','Fundamental Analysis','Other'
+  ];
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.date || !form.instrument) return;
+    if (!form.date || !form.instrument || saving) return;
+    setSaving(true);
     const id = Math.random().toString(36).slice(2,9);
     const trade: Trade = {
       id,
@@ -361,58 +368,264 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?
     onSaved();
   };
 
+  // Keyboard shortcuts: Esc to cancel, Ctrl/Cmd+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel && onCancel();
+      } else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 's')) {
+        e.preventDefault();
+        const formEl = document.querySelector('#trade-form') as HTMLFormElement | null;
+        formEl?.requestSubmit();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onCancel]);
+
+  const pnl = useMemo(() => {
+    const dir = (form.side === 'Buy' || form.side === 'Long') ? 1 : -1;
+    const ep = Number(form.entryPrice) || 0;
+    const xp = Number(form.exitPrice) || 0;
+    const q = Number(form.quantity) || 0;
+    return (xp - ep) * dir * q;
+  }, [form.side, form.entryPrice, form.exitPrice, form.quantity]);
+
+  const canSave = Boolean(form.date && form.instrument);
+
   return (
-    <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-4 gap-3 surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
-      <Input label="Date & Time" type="datetime-local" value={form.date || ''} onChange={v => set('date', v)} />
-      <Input label="Exit Date" type="datetime-local" value={form.exitDate || ''} onChange={v => set('exitDate', v)} />
-      <Input label="Instrument" value={form.instrument || ''} onChange={v => set('instrument', v)} />
-      <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
+    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Input label="Date & Time" type="datetime-local" value={form.date || ''} onChange={v => set('date', v)} />
+        <Input label="Exit Date" type="datetime-local" value={form.exitDate || ''} onChange={v => set('exitDate', v)} />
+      </div>
 
-      <Input label="Entry Price" type="number" value={String(form.entryPrice ?? '')} onChange={v => set('entryPrice', v)} />
-      <Input label="Exit Price" type="number" value={String(form.exitPrice ?? '')} onChange={v => set('exitPrice', v)} />
-      <Input label="Quantity" type="number" value={String(form.quantity ?? '')} onChange={v => set('quantity', v)} />
-      <Input label="Stop-Loss" type="number" value={String(form.stopLoss ?? '')} onChange={v => set('stopLoss', v)} />
+      <div className="text-sm font-semibold text-slate-800 mt-1">Trade Snapshot (optional)</div>
+      <div className="h-px bg-slate-200" />
 
-      <Input label="Take-Profit" type="number" value={String(form.takeProfit ?? '')} onChange={v => set('takeProfit', v)} />
-      <Input label="Risk ($)" type="number" value={String(form.riskAmount ?? '')} onChange={v => set('riskAmount', v)} />
-      <Input label="Risk (%)" type="number" value={String(form.riskPercent ?? '')} onChange={v => set('riskPercent', v)} />
-      <Input label="Strategy" value={form.strategy || ''} onChange={v => set('strategy', v)} />
+      {/* Compact row: Instrument ▲ Side ▲ Entry ▲ Exit ▲ Qty ▲ P&L */}
+      <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
+        <label className="text-sm md:col-span-2">
+          <span className="block mb-1 text-slate-600">Instrument</span>
+          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        </label>
+        <div className="md:col-span-1">
+          <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
+        </div>
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Entry</span>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </label>
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Exit</span>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </label>
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Qty</span>
+          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        </label>
+        <div className="text-sm md:col-span-1">
+          <div className="block mb-1 text-slate-600">P&L</div>
+          <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+            {pnl>=0 ? '▲ ' : '▼ '} {pnl.toFixed(2)}
+          </div>
+        </div>
+      </div>
 
-      <label className="md:col-span-2 text-sm">
-        <span className="block mb-1 text-slate-600">Reason for Entry</span>
-        <textarea value={form.entryReason || ''} onChange={e => set('entryReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
-      </label>
-      <label className="md:col-span-2 text-sm">
-        <span className="block mb-1 text-slate-600">Reason for Exit</span>
-        <textarea value={form.exitReason || ''} onChange={e => set('exitReason', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={3} />
-      </label>
+      {/* Strategy ▲ Tags ▲ Notes */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <label className="text-sm md:col-span-2">
+          <span className="block mb-1 text-slate-600">Strategy</span>
+          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+        </label>
+        <label className="text-sm md:col-span-2">
+          <span className="block mb-1 text-slate-600">Tags</span>
+          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="comma separated (press Enter to add)" onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const cur = (form.tags || []);
+              const input = (e.target as HTMLInputElement).value.trim();
+              if (input) set('tags', Array.from(new Set([...cur, ...input.split(',').map(s=>s.trim()).filter(Boolean)])));
+            }
+          }} />
+          {(form.tags && form.tags.length>0) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {form.tags.map((t, i) => (
+                <span key={`${t}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-300">
+                  {t}
+                  <button type="button" onClick={() => set('tags', (form.tags||[]).filter(x => x!==t))} className="ml-1 text-slate-500 hover:text-slate-700">×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </label>
+        {/* Notes moved to its own section below */}
+      </div>
 
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Tags (comma separated)</span>
-        <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-      </label>
-      <label className="md:col-span-3 text-sm">
-        <span className="block mb-1 text-slate-600">Notes</span>
-        <input value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-      </label>
+      {/* Quick pick strategy chips */}
+      <div className="flex flex-wrap gap-2">
+        {strategiesPreset.map(str => (
+          <button
+            type="button"
+            key={str}
+            onClick={() => set('strategy', str)}
+            className={`px-3 py-1 rounded-full border text-sm ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+          >
+            {str}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          placeholder="Add custom strategy..."
+          value={form.strategy || ''}
+          onChange={e => set('strategy', e.target.value)}
+          className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        <button type="button" onClick={() => set('strategy', (form.strategy||'').trim())} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300">Add</button>
+      </div>
 
-      <label className="text-sm">
-        <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
-        <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
-        {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
-      </label>
+      {/* Trading Result segmented */}
+      <div className="space-y-2">
+        <div className="text-sm font-semibold text-slate-800">Trading Result</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {(['profit','loss','breakeven'] as const).map(mode => {
+            const active = (mode==='profit' && pnl>0) || (mode==='loss' && pnl<0) || (mode==='breakeven' && pnl===0);
+            const cls = mode==='profit'
+              ? active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-600 border-emerald-600'
+              : mode==='loss'
+                ? active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-600'
+                : active ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-800 border-slate-800';
+            const label = mode==='profit' ? 'Profit' : mode==='loss' ? 'Loss' : 'Breakeven';
+            const onClick = () => {
+              const ep = Number(form.entryPrice) || 0;
+              const isLong = form.side === 'Buy' || form.side === 'Long';
+              if (mode==='breakeven') {
+                set('exitPrice', ep);
+              } else if (mode==='profit') {
+                set('exitPrice', isLong ? ep + 1 : ep - 1);
+              } else {
+                set('exitPrice', isLong ? ep - 1 : ep + 1);
+              }
+            };
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={onClick}
+                className={`px-4 py-2 rounded-xl border font-medium focus:outline-none focus:ring-2 focus:ring-offset-1 ${cls}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      <div className="md:col-span-4 flex justify-end gap-2">
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
-        )}
-        <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white">Save Trade</button>
+      {/* Risk management */}
+      <div className="h-px bg-slate-200" />
+      <div className="text-sm font-semibold text-slate-800">Risk Management</div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Stop-Loss</span>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </label>
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Take-Profit</span>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </label>
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Risk (₹)</span>
+          <div className="relative">
+            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          </div>
+        </label>
+        <Input label="Risk (%)" type="number" value={String(form.riskPercent ?? '')} onChange={v => set('riskPercent', v)} />
+      </div>
+
+      {/* RR metrics */}
+      <RRMetrics entry={Number(form.entryPrice)||0} sl={form.stopLoss==null?undefined:Number(form.stopLoss)} tp={form.takeProfit==null?undefined:Number(form.takeProfit)} side={String(form.side||'Buy') as any} qty={Number(form.quantity)||0} />
+
+      {/* Notes */}
+      <div className="h-px bg-slate-200" />
+      <div className="text-sm font-semibold text-slate-800">Notes</div>
+      <div className="grid grid-cols-1 gap-3">
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600">Notes</span>
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={4} placeholder="Add any observations, emotions, mistakes, improvements, or learnings..." />
+        </label>
+      </div>
+
+      {/* Attachments */}
+      <div className="h-px bg-slate-200" />
+      <div className="text-sm font-semibold text-slate-800">Attachments</div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <label className="text-sm md:col-span-2">
+          <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
+          <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
+          {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
+        </label>
+        <div className="md:col-span-2 flex justify-end items-end gap-2 sticky bottom-0 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 p-2 rounded-lg border border-slate-200">
+          {onCancel && (
+            <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
+          )}
+          <button
+            type="submit"
+            disabled={!canSave || saving}
+            className={`px-4 py-2 rounded-lg text-white bg-gradient-to-r from-indigo-600 to-blue-600 shadow-sm hover:from-indigo-500 hover:to-blue-500 disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            {saving ? 'Saving…' : 'Save Trade'}
+          </button>
+        </div>
       </div>
     </form>
   );
 };
 
-// Trades table moved to Trade page
+// Risk/Reward metrics chips
+const RRMetrics: React.FC<{ entry: number; sl?: number; tp?: number; side: Trade['side']; qty: number }>
+  = ({ entry, sl, tp, side, qty }) => {
+  const isLong = side === 'Buy' || side === 'Long';
+  const dir = isLong ? 1 : -1;
+  const riskPerUnit = (sl == null) ? undefined : Math.max(0, (isLong ? (entry - sl) : (sl - entry)));
+  const rewardPerUnit = (tp == null) ? undefined : Math.max(0, (isLong ? (tp - entry) : (entry - tp)));
+  const rr = (riskPerUnit && rewardPerUnit && riskPerUnit > 0) ? (rewardPerUnit / riskPerUnit) : null;
+  const pnlAtSL = (sl == null) ? null : ((sl - entry) * dir * qty);
+  const pnlAtTP = (tp == null) ? null : ((tp - entry) * dir * qty);
+
+  const chip = (label: string, val: string | number, tone: 'neutral'|'pos'|'neg'='neutral') => (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs border ${
+      tone==='pos' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : tone==='neg' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-200'
+    }`}>
+      {label}: {val}
+    </span>
+  );
+
+  return (
+    <div className="flex flex-wrap gap-2 items-center">
+      {rr != null && Number.isFinite(rr) && chip('R:R', rr.toFixed(2))}
+      {pnlAtSL != null && chip('P&L @ SL', pnlAtSL.toFixed(2), 'neg')}
+      {pnlAtTP != null && chip('P&L @ TP', pnlAtTP.toFixed(2), 'pos')}
+      {rr == null && (sl == null || tp == null) && (
+        <span className="text-xs text-slate-500">Add SL and TP to see R:R</span>
+      )}
+    </div>
+  );
+};
 
 const StrategySuccess: React.FC<{ trades: Trade[] }> = ({ trades }) => {
   const map = new Map<string, { wins: number; total: number }>();
