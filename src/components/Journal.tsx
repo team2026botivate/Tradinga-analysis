@@ -16,6 +16,7 @@ const Journal: React.FC = () => {
   const [month, setMonth] = useState<number>(new Date().getMonth()); // 0-11
   const [showFormModal, setShowFormModal] = useState(false);
   const [draftDate, setDraftDate] = useState<string | undefined>(undefined);
+  const [showPnlPopup, setShowPnlPopup] = useState<{date: string, pnl: number} | null>(null);
 
   const tradesAll = useMemo(() => getTrades(), [forceTick]);
 
@@ -83,11 +84,12 @@ const Journal: React.FC = () => {
     setShowFormModal(true);
   };
 
-  const openFormForDate = (isoDate: string) => {
-    // Expecting isoDate like YYYY-MM-DD
-    const dtLocal = `${isoDate}T09:00`; // default morning time
-    setDraftDate(dtLocal);
-    setShowFormModal(true);
+  const showPnlCard = (isoDate: string, pnl?: number) => {
+    if (pnl !== undefined) {
+      setShowPnlPopup({ date: isoDate, pnl });
+      // Auto-hide after 2 seconds
+      setTimeout(() => setShowPnlPopup(null), 2000);
+    }
   };
 
   // Demo data seeding
@@ -221,11 +223,25 @@ const Journal: React.FC = () => {
                   onSaved={() => {
                     setForceTick(v => v + 1);
                     setShowFormModal(false);
-                    // Navigate to Trade page
-                    window.dispatchEvent(new CustomEvent('navigate', { detail: 'trade' }));
                   }}
                   onCancel={() => setShowFormModal(false)}
                 />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* P&L Popup Card */}
+      {showPnlPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl p-4 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="text-center">
+              <div className="text-sm text-slate-600 mb-1">{new Date(showPnlPopup.date).toLocaleDateString()}</div>
+              <div className={`text-lg font-semibold ${
+                showPnlPopup.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'
+              }`}>
+                {showPnlPopup.pnl >= 0 ? 'Profit' : 'Loss'}: ₹{Math.abs(showPnlPopup.pnl).toFixed(0)}
               </div>
             </div>
           </div>
@@ -253,7 +269,7 @@ const Journal: React.FC = () => {
       <section className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card title={`${monthName(month)} ${year}`}>
-            <MonthCalendar year={year} month={month} setMonth={setMonth} dayAgg={dayAgg} onSelectDate={openFormForDate} />
+            <MonthCalendar year={year} month={month} setMonth={setMonth} dayAgg={dayAgg} onSelectDate={showPnlCard} />
           </Card>
           <Card title="Overall Week Day Breakup">
             <WeekdayBreakup dayAgg={dayAgg} year={year} month={month} />
@@ -322,7 +338,7 @@ const Input: React.FC<{ label: string; value: string; onChange: (v: string) => v
 
 // Using custom Select from './ui/Select'
 
-const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?: () => void }> = ({ onSaved, initialDate, onCancel }) => {
+const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPnl?: number; onCancel?: () => void }> = ({ onSaved, initialDate, initialPnl, onCancel }) => {
   const [form, setForm] = useState<Partial<Trade>>({
     date: (initialDate ?? new Date().toISOString().slice(0,16)),
     instrument: '', side: 'Buy', entryPrice: 0, exitPrice: 0, quantity: 1,
@@ -333,6 +349,23 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?
   const [saving, setSaving] = useState(false);
 
   const set = (k: keyof Trade, v: any) => setForm(s => ({ ...s, [k]: v }));
+
+  // Pre-fill form with P&L data if provided
+  useEffect(() => {
+    if (initialPnl !== undefined) {
+      // If we have a P&L amount, set entry and exit prices to reflect it
+      // For simplicity, assume entry price of 100 and calculate exit based on P&L
+      const entryPrice = 100;
+      const quantity = 1;
+      const exitPrice = entryPrice + (initialPnl / quantity);
+      setForm(prev => ({
+        ...prev,
+        entryPrice,
+        exitPrice,
+        quantity
+      }));
+    }
+  }, [initialPnl]);
 
   const strategiesPreset = [
     'Breakout','Reversal','Scalping','Trend Following','Swing Trading','Momentum',
@@ -495,21 +528,17 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; onCancel?
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm font-semibold text-slate-800">Trading Result</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {(['profit','loss','breakeven'] as const).map(mode => {
-            const active = (mode==='profit' && pnl>0) || (mode==='loss' && pnl<0) || (mode==='breakeven' && pnl===0);
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {(['profit','loss'] as const).map(mode => {
+            const active = (mode==='profit' && pnl>0) || (mode==='loss' && pnl<0);
             const cls = mode==='profit'
               ? active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-600 border-emerald-600'
-              : mode==='loss'
-                ? active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-600'
-                : active ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-800 border-slate-800';
-            const label = mode==='profit' ? 'Profit' : mode==='loss' ? 'Loss' : 'Breakeven';
+              : active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-600';
+            const label = mode==='profit' ? 'Profit' : 'Loss';
             const onClick = () => {
               const ep = Number(form.entryPrice) || 0;
               const isLong = form.side === 'Buy' || form.side === 'Long';
-              if (mode==='breakeven') {
-                set('exitPrice', ep);
-              } else if (mode==='profit') {
+              if (mode==='profit') {
                 set('exitPrice', isLong ? ep + 1 : ep - 1);
               } else {
                 set('exitPrice', isLong ? ep - 1 : ep + 1);
@@ -700,7 +729,7 @@ const ActivityHeatmap: React.FC<{ year: number; dayAgg: Map<string, { pnl: numbe
 };
 
 // ---------- Month Calendar with daily P&L ----------
-const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number)=>void; dayAgg: Map<string,{pnl:number;count:number}>; onSelectDate?: (isoDate: string)=>void }>
+const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number)=>void; dayAgg: Map<string,{pnl:number;count:number}>; onSelectDate?: (isoDate: string, pnl?: number)=>void }>
   = ({ year, month, setMonth, dayAgg, onSelectDate }) => {
   const first = new Date(year, month, 1);
   const startDow = first.getDay(); // 0 Sun
@@ -731,7 +760,7 @@ const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number
           <button
             key={i}
             type="button"
-            onClick={() => c.date && onSelectDate && onSelectDate(c.date)}
+            onClick={() => c.date && onSelectDate && onSelectDate(c.date, c.pnl)}
             className={`text-left h-16 rounded border border-slate-200 p-1 overflow-hidden ${c.pnl!=null ? (c.pnl>0?'bg-emerald-50/60':'bg-red-50/60') : ''} hover:bg-white hover:shadow-sm transition-colors`}
           >
             <div className="text-xs text-slate-500">{c.label}</div>
