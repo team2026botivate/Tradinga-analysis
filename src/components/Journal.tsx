@@ -135,7 +135,7 @@ const Journal: React.FC = () => {
       <h2 className="heading">Trade Journal</h2>
 
       {/* Top controls */}
-      <section className="surface-card p-4 space-y-3 hover:bg-slate-50 hover:shadow-sm transition-colors">
+      <section className="surface-card p-4 space-y-3 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="flex-1">
             <Input label="Search symbols, strategies, notes" value={filters.search} onChange={v => setFilters(s => ({...s, search: v}))} />
@@ -201,7 +201,7 @@ const Journal: React.FC = () => {
             </div>
           </Card>
         </div>
-        <Card title="Trading Activity" className="border border-slate-300 hover:border-primary-200"><ActivityHeatmap year={year} dayAgg={dayAgg} /></Card>
+        <Card title="Trading Activity" className="border border-slate-300 hover:border-slate-300 dark:hover:border-slate-700"><ActivityHeatmap year={year} dayAgg={dayAgg} /></Card>
         <Card title="Equity Curve"><EquityChart points={m.equity} /></Card>
       </section>
 
@@ -212,10 +212,10 @@ const Journal: React.FC = () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
           <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
           <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-h-[92vh] overflow-auto no-scrollbar">
-              <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-slate-200 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-                <h3 className="text-lg font-semibold text-slate-900">Add Trade</h3>
-                <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-slate-200 bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trade</h3>
+                <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
               </div>
               <div className="p-4">
                 <TradeForm
@@ -235,11 +235,11 @@ const Journal: React.FC = () => {
       {/* P&L Popup Card */}
       {showPnlPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl p-4 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-4 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="text-center">
               <div className="text-sm text-slate-600 mb-1">{new Date(showPnlPopup.date).toLocaleDateString()}</div>
               <div className={`text-lg font-semibold ${
-                showPnlPopup.pnl >= 0 ? 'text-emerald-600' : 'text-red-600'
+                showPnlPopup.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
               }`}>
                 {showPnlPopup.pnl >= 0 ? 'Profit' : 'Loss'}: ₹{Math.abs(showPnlPopup.pnl).toFixed(0)}
               </div>
@@ -287,14 +287,14 @@ const Journal: React.FC = () => {
 };
 
 const StatCard: React.FC<{ title: string; value: React.ReactNode }> = ({ title, value }) => (
-  <div className="surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
+  <div className="surface-card p-4 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
     <div className="text-slate-500 text-sm">{title}</div>
     <div className="text-2xl font-semibold">{value}</div>
   </div>
 );
 
 const Card: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
-  <div className={`surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors ${className || ''}`}>
+  <div className={`surface-card p-4 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors ${className || ''}`}>
     <h4 className="font-semibold mb-3">{title}</h4>
     {children}
   </div>
@@ -428,7 +428,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
   const canSave = Boolean(form.date && form.instrument);
 
   return (
-    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 surface-card p-4 hover:bg-slate-50 hover:shadow-sm transition-colors">
+    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 surface-card p-4 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Input label="Date & Time" type="datetime-local" value={form.date || ''} onChange={v => set('date', v)} />
         <Input label="Exit Date" type="datetime-local" value={form.exitDate || ''} onChange={v => set('exitDate', v)} />
@@ -441,7 +441,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
         <label className="text-sm md:col-span-2">
           <span className="block mb-1 text-slate-600">Instrument</span>
-          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input" />
         </label>
         <div className="md:col-span-1">
           <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
@@ -450,23 +450,23 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <span className="block mb-1 text-slate-600">Entry</span>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-6" />
           </div>
         </label>
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Exit</span>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-6" />
           </div>
         </label>
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Qty</span>
-          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input" />
         </label>
         <div className="text-sm md:col-span-1">
           <div className="block mb-1 text-slate-600">P&L</div>
-          <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+          <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
             {pnl>=0 ? '▲ ' : '▼ '} {pnl.toFixed(2)}
           </div>
         </div>
@@ -476,11 +476,11 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <label className="text-sm md:col-span-2">
           <span className="block mb-1 text-slate-600">Strategy</span>
-          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="input" />
         </label>
         <label className="text-sm md:col-span-2">
           <span className="block mb-1 text-slate-600">Tags</span>
-          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="comma separated (press Enter to add)" onKeyDown={e => {
+          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="input" placeholder="comma separated (press Enter to add)" onKeyDown={e => {
             if (e.key === 'Enter') {
               e.preventDefault();
               const cur = (form.tags || []);
@@ -491,9 +491,9 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           {(form.tags && form.tags.length>0) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {form.tags.map((t, i) => (
-                <span key={`${t}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-700 border border-slate-300">
+                <span key={`${t}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
                   {t}
-                  <button type="button" onClick={() => set('tags', (form.tags||[]).filter(x => x!==t))} className="ml-1 text-slate-500 hover:text-slate-700">×</button>
+                  <button type="button" onClick={() => set('tags', (form.tags||[]).filter(x => x!==t))} className="ml-1 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">×</button>
                 </span>
               ))}
             </div>
@@ -509,7 +509,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
             type="button"
             key={str}
             onClick={() => set('strategy', str)}
-            className={`px-3 py-1 rounded-full border text-sm ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'}`}
+            className={`px-3 py-1 rounded-full border text-sm ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
             {str}
           </button>
@@ -520,29 +520,43 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           placeholder="Add custom strategy..."
           value={form.strategy || ''}
           onChange={e => set('strategy', e.target.value)}
-          className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="input flex-1"
         />
-        <button type="button" onClick={() => set('strategy', (form.strategy||'').trim())} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 border border-slate-300">Add</button>
+        <button type="button" onClick={() => set('strategy', (form.strategy||'').trim())} className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700">Add</button>
       </div>
 
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm font-semibold text-slate-800">Trading Result</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {(['profit','loss'] as const).map(mode => {
-            const active = (mode==='profit' && pnl>0) || (mode==='loss' && pnl<0);
-            const cls = mode==='profit'
-              ? active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-600 border-emerald-600'
-              : active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-600 border-red-600';
-            const label = mode==='profit' ? 'Profit' : 'Loss';
+          {["profit","loss","open","breakeven"].map(mode => {
+            const active = (mode==="profit" && pnl>0) || (mode==="loss" && pnl<0);
+            let cls = "";
+            let label = "";
+            if (mode==="profit") {
+              cls = active ? "bg-emerald-600 text-white border-emerald-600" : "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 border-emerald-600";
+              label = "Profit";
+            } else if (mode==="loss") {
+              cls = active ? "bg-red-600 text-white border-red-600" : "bg-white dark:bg-slate-900 text-red-600 dark:text-red-400 border-red-600";
+              label = "Loss";
+            } else if (mode==="open") {
+              cls = active ? "bg-blue-600 text-white border-blue-600" : "bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600";
+              label = "Open Trade";
+            } else if (mode==="breakeven") {
+              cls = active ? "bg-yellow-500 text-white border-yellow-500" : "bg-white dark:bg-slate-900 text-yellow-600 dark:text-yellow-400 border-yellow-600";
+              label = "Breakeven";
+            }
             const onClick = () => {
-              const ep = Number(form.entryPrice) || 0;
-              const isLong = form.side === 'Buy' || form.side === 'Long';
-              if (mode==='profit') {
-                set('exitPrice', isLong ? ep + 1 : ep - 1);
-              } else {
-                set('exitPrice', isLong ? ep - 1 : ep + 1);
+              if (mode==="profit" || mode==="loss") {
+                const ep = Number(form.entryPrice) || 0;
+                const isLong = form.side === "Buy" || form.side === "Long";
+                if (mode==="profit") {
+                  set("exitPrice", isLong ? ep + 1 : ep - 1);
+                } else {
+                  set("exitPrice", isLong ? ep - 1 : ep + 1);
+                }
               }
+              set('side', mode as Trade['side']);
             };
             return (
               <button
@@ -566,21 +580,21 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <span className="block mb-1 text-slate-600">Stop-Loss</span>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input pl-6" />
           </div>
         </label>
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Take-Profit</span>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input pl-6" />
           </div>
         </label>
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Risk (₹)</span>
           <div className="relative">
             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="w-full pl-6 pr-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input pl-6" />
           </div>
         </label>
         <Input label="Risk (%)" type="number" value={String(form.riskPercent ?? '')} onChange={v => set('riskPercent', v)} />
@@ -595,7 +609,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       <div className="grid grid-cols-1 gap-3">
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Notes</span>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows={4} placeholder="Add any observations, emotions, mistakes, improvements, or learnings..." />
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input" rows={4} placeholder="Add any observations, emotions, mistakes, improvements, or learnings..." />
         </label>
       </div>
 
@@ -608,9 +622,9 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
           {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
         </label>
-        <div className="md:col-span-2 flex justify-end items-end gap-2 sticky bottom-0 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 p-2 rounded-lg border border-slate-200">
+        <div className="md:col-span-2 flex justify-end items-end gap-2 sticky bottom-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
           {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
           )}
           <button
             type="submit"
@@ -638,7 +652,7 @@ const RRMetrics: React.FC<{ entry: number; sl?: number; tp?: number; side: Trade
 
   const chip = (label: string, val: string | number, tone: 'neutral'|'pos'|'neg'='neutral') => (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs border ${
-      tone==='pos' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : tone==='neg' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-50 text-slate-700 border-slate-200'
+      tone==='pos' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700' : tone==='neg' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
     }`}>
       {label}: {val}
     </span>
@@ -707,8 +721,8 @@ const ActivityHeatmap: React.FC<{ year: number; dayAgg: Map<string, { pnl: numbe
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {months.map(m => (
-        <div key={m} className="space-y-2 rounded-xl border border-slate-300 bg-white p-3 hover:bg-primary-50 hover:border-primary-200 hover:shadow-sm transition-colors">
-          <div className="text-sm text-slate-500">{monthName(m)}</div>
+        <div key={m} className="space-y-2 rounded-xl border border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-colors">
+          <div className="text-sm text-slate-500 dark:text-slate-400">{monthName(m)}</div>
           <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: daysInMonth(year, m) }, (_, i) => i + 1).map(d => {
               const key = `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -716,7 +730,7 @@ const ActivityHeatmap: React.FC<{ year: number; dayAgg: Map<string, { pnl: numbe
               return (
                 <div
                   key={d}
-                  className={`h-4 w-4 rounded-sm border ${rec ? color(rec.pnl) : fallback}`}
+                  className={`h-4 w-4 rounded-sm border ${rec ? color(rec.pnl) : `${fallback} dark:bg-slate-700/60 dark:border-slate-600`}`}
                   title={`${key} ${rec ? rec.pnl.toFixed(2) : ''}`}
                 />
               );
@@ -748,11 +762,11 @@ const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex gap-2">
-          <button onClick={prev} className="px-2 py-1 rounded border border-slate-300">‹</button>
-          <button onClick={next} className="px-2 py-1 rounded border border-slate-300">›</button>
+          <button onClick={prev} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">‹</button>
+          <button onClick={next} className="px-2 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">›</button>
         </div>
       </div>
-      <div className="grid grid-cols-7 gap-2 text-xs text-slate-500 mb-2">
+      <div className="grid grid-cols-7 gap-2 text-xs text-slate-500 dark:text-slate-400 mb-2">
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d}>{d}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-2">
@@ -761,10 +775,10 @@ const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number
             key={i}
             type="button"
             onClick={() => c.date && onSelectDate && onSelectDate(c.date, c.pnl)}
-            className={`text-left h-16 rounded border border-slate-200 p-1 overflow-hidden ${c.pnl!=null ? (c.pnl>0?'bg-emerald-50/60':'bg-red-50/60') : ''} hover:bg-white hover:shadow-sm transition-colors`}
+            className={`text-left h-16 rounded border border-slate-200 dark:border-slate-700 p-1 overflow-hidden ${c.pnl!=null ? (c.pnl>0?'bg-emerald-50/60 dark:bg-emerald-900/20':'bg-red-50/60 dark:bg-red-900/20') : ''} hover:bg-white dark:hover:bg-slate-800 hover:shadow-sm transition-colors`}
           >
-            <div className="text-xs text-slate-500">{c.label}</div>
-            <div className={`text-xs ${c.pnl!=null?(c.pnl>0?'text-emerald-600':'text-red-600'):''}`}>{fmt(c.pnl)}</div>
+            <div className="text-xs text-slate-500 dark:text-slate-400">{c.label}</div>
+            <div className={`text-xs ${c.pnl!=null?(c.pnl>0?'text-emerald-600 dark:text-emerald-400':'text-red-600 dark:text-red-400'):''}`}>{fmt(c.pnl)}</div>
           </button>
         ))}
       </div>
@@ -793,7 +807,8 @@ const WeekdayBreakup: React.FC<{ dayAgg: Map<string,{pnl:number;count:number}>; 
       }}
     >
       <div className="relative mx-auto w-full max-w-[560px] h-full">
-        <div className="absolute left-0 right-0 bottom-12 h-px bg-slate-300/40" />
+        <div className="absolute left-0 right-0 bottom-12 h-px bg-slate-300/40 dark:bg-slate-700/40" />
+
         <div className="flex items-end justify-between h-full gap-3">
           {sums.map((v, i) => {
             const pct = Math.max(6, Math.abs(v) / max * 100);
@@ -810,8 +825,9 @@ const WeekdayBreakup: React.FC<{ dayAgg: Map<string,{pnl:number;count:number}>; 
                     title={`${labels[i]}: ${v.toFixed(2)}`}
                   />
                 </div>
-                <div className="text-[11px] text-slate-500">{labels[i]}</div>
-                <div className={`text-[11px] font-medium ${positive ? 'text-emerald-500' : 'text-red-500'}`}>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">{labels[i]}</div>
+
+                <div className={`text-[11px] font-medium ${positive ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                   {v === 0 ? '—' : v.toFixed(0)}
                 </div>
               </div>

@@ -840,10 +840,12 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm text-slate-700">Trading Result</div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
             {k:'loss', label:'Loss', cls:'border-red-600 text-red-700', bg:'bg-red-600 text-white'},
+            {k:'open', label:'Open Trade', cls:'border-blue-600 text-blue-700', bg:'bg-blue-600 text-white'},
+            {k:'breakeven', label:'Breakeven', cls:'border-yellow-600 text-yellow-700', bg:'bg-yellow-600 text-white'},
           ].map((b:any) => (
             <button
               key={b.k}

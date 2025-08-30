@@ -100,6 +100,38 @@ const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="surface-card p-6 flex flex-col justify-between">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Monthly P&L</h2>
+          <p className="text-3xl font-bold text-primary-700">₹45,200</p>
+          <p className="text-sm text-success-700 mt-1">+₹8,500 (18.8%)</p>
+          <p className="text-xs text-slate-500 mt-2">June 2024</p>
+        </div>
+        <div className="surface-card p-6 flex flex-col justify-between">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Today's P&L</h2>
+          <p className="text-3xl font-bold text-primary-700">₹2,300</p>
+          <p className="text-sm text-success-700 mt-1">+₹300 (15%)</p>
+          <p className="text-xs text-slate-500 mt-2">July 3, 2024</p>
+        </div>
+      </div>
+      {/* Best/Worst Trading Date Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="surface-card p-6 flex flex-col justify-between">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Best Trading Day</h2>
+          <p className="text-2xl font-bold text-green-700">₹3,200</p>
+          <p className="text-sm text-slate-600 mt-1">July 12, 2024</p>
+          <span className="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs mt-2">Profit</span>
+        </div>
+        <div className="surface-card p-6 flex flex-col justify-between">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Worst Trading Day</h2>
+          <p className="text-2xl font-bold text-red-700">-₹2,100</p>
+          <p className="text-sm text-slate-600 mt-1">July 7, 2024</p>
+          <span className="inline-block px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs mt-2">Loss</span>
+        </div>
+      </div>
+      {/* Statistics Section */}
+     
+        
         {/* Top Movers */}
         <div className="surface-card p-6">
           <h2 className="text-xl font-bold text-slate-900 mb-4">Top Movers</h2>
@@ -163,6 +195,12 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+      
+     
+      {/* Weekday Performance Bar Chart */}
+     
+      {/* Calendar View with Daily P&L */}
+     
     </div>
   );
 };

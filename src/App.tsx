@@ -71,7 +71,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-brand-50 to-white">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-brand-50 to-white dark:from-slate-950 dark:to-slate-900 text-slate-900 dark:text-slate-100">
       <div className="flex min-w-0">
         <Sidebar
           activeTab={activeTab}
@@ -94,7 +94,7 @@ function App() {
             <div className="md:hidden mb-4">
               <button
                 onClick={() => setSidebarCollapsed(false)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-700"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                 aria-label="Open menu"
               >
                 <Menu className="h-5 w-5" />

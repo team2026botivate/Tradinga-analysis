@@ -75,8 +75,8 @@ body {
   .btn { @apply px-4 py-2 rounded-xl transition-all duration-200 tap-active; }
   .focus-ring { @apply focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-blue-500/60; }
   .money-prefix { @apply absolute inset-y-0 left-3 flex items-center text-slate-400; }
-  .input { @apply w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 focus-ring; }
-  .input-muted { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800; }
+  .input { @apply w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-100 focus-ring; }
+  .input-muted { @apply w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200; }
   .pulse-soft { animation: subtlePulse 2s ease-in-out infinite; }
   .shimmer {
     background: linear-gradient(90deg, rgba(148,163,184,0.15) 25%, rgba(148,163,184,0.35) 37%, rgba(148,163,184,0.15) 63%);
@@ -90,16 +90,44 @@ body {
   .glass-input { @apply w-full px-3 py-2 rounded-xl border border-white/20 bg-white/5 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40; }
 
   /* Minimal professional surfaces & utilities */
-  .surface-card { @apply rounded-2xl border border-slate-200/60 bg-white shadow-sm; }
+  .surface-card { @apply rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 shadow-sm transition-colors transition-shadow; }
+  .surface-card:hover { @apply shadow-md bg-slate-50 dark:bg-slate-800; }
   .container-page { @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8; }
-  .heading { @apply text-2xl md:text-3xl font-bold text-slate-900; }
-  .subheading { @apply text-slate-600; }
-  .muted { @apply text-slate-500; }
+  .heading { @apply text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-100; }
+  .subheading { @apply text-slate-600 dark:text-slate-400; }
+  .muted { @apply text-slate-500 dark:text-slate-400; }
   .btn-primary { @apply btn bg-blue-600 text-white hover:bg-blue-700 focus-ring; }
-  .btn-secondary { @apply btn bg-slate-100 text-slate-700 hover:bg-slate-200 focus-ring; }
-  .btn-ghost { @apply btn text-slate-700 hover:bg-slate-100; }
+  .btn-secondary { @apply btn bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 focus-ring; }
+  .btn-ghost { @apply btn text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800; }
   .btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700 focus-ring; }
   .btn-outline-danger { @apply btn border border-red-300 text-red-700 hover:bg-red-50 focus-ring; }
+}
+
+/* Global dark-mode overrides for common utilities used in components */
+@layer utilities {
+  .dark .bg-white { @apply bg-slate-900; }
+  .dark .bg-slate-50 { @apply bg-slate-800; }
+  .dark .bg-slate-100 { @apply bg-slate-800; }
+  .dark .bg-slate-200 { @apply bg-slate-800; }
+  .dark .text-slate-900 { @apply text-slate-100; }
+  .dark .text-slate-800 { @apply text-slate-100; }
+  .dark .text-slate-700 { @apply text-slate-300; }
+  .dark .text-slate-600 { @apply text-slate-400; }
+  .dark .text-slate-500 { @apply text-slate-400; }
+  .dark .border-slate-200 { @apply border-slate-800; }
+  .dark .border-slate-300 { @apply border-slate-700; }
+
+  /* Ensure hover states remain readable in dark mode */
+  .dark .hover\:bg-slate-50:hover { @apply bg-slate-800; }
+  .dark .hover\:bg-slate-100:hover { @apply bg-slate-800; }
+  .dark .hover\:bg-slate-200:hover { @apply bg-slate-700; }
+  .dark .hover\:bg-white:hover { @apply bg-slate-800; }
+  .dark .hover\:text-slate-900:hover { @apply text-white; }
+  .dark .hover\:text-slate-800:hover { @apply text-white; }
+  .dark .hover\:text-slate-700:hover { @apply text-slate-200; }
+  .dark .hover\:text-slate-600:hover { @apply text-slate-300; }
+  .dark .hover\:border-slate-200:hover { @apply border-slate-700; }
+  .dark .hover\:border-slate-300:hover { @apply border-slate-700; }
 }
 
 /* A subtle background for the journal page */
