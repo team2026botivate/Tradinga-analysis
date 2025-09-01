@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { addTrade, clearTrades, computeMetrics, getTrades, Trade } from '../store/trades';
 import Select from './ui/Select';
+import FilterPanel from './FilterPanel';
+import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { FaDownload } from 'react-icons/fa';
 
 const Journal: React.FC = () => {
   const [forceTick, setForceTick] = useState(0); // to re-render after adding trades
@@ -12,13 +15,35 @@ const Journal: React.FC = () => {
     status: 'all' as 'all' | 'win' | 'loss',
     search: '',
   });
-  const [year, setYear] = useState<number>(new Date().getFullYear());
   const [month, setMonth] = useState<number>(new Date().getMonth()); // 0-11
   const [showFormModal, setShowFormModal] = useState(false);
   const [draftDate, setDraftDate] = useState<string | undefined>(undefined);
   const [showPnlPopup, setShowPnlPopup] = useState<{date: string, pnl: number} | null>(null);
+  const dummyData = useMemo(() => [
+    { date: '2023-08-01', value: 500 },
+    { date: '2023-08-02', value: 750 },
+    { date: '2023-08-03', value: 950 },
+    { date: '2023-08-04', value: 773 },
+    { date: '2023-08-05', value: 228 },
+    { date: '2023-08-06', value: -45 },
+    { date: '2023-08-07', value: 150 },
+  ], []);
 
   const tradesAll = useMemo(() => getTrades(), [forceTick]);
+
+  // Auto-refresh when trades change in this or another tab
+  useEffect(() => {
+    const bump = () => setForceTick(v => v + 1);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'trades_v1') bump();
+    };
+    window.addEventListener('trades_changed' as any, bump);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('trades_changed' as any, bump);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   // Lock body scroll when modal is open to hide background scrollbar
   useEffect(() => {
@@ -97,7 +122,7 @@ const Journal: React.FC = () => {
     const symbols = ['NIFTY', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY'];
     const strategies = ['Breakout', 'Reversal', 'Trend-Follow', 'S/R Bounce'];
     const sides: Array<Trade['side']> = ['Buy', 'Sell', 'Long', 'Short'];
-    const yr = year;
+    const yr = new Date().getFullYear();
     const demo: Trade[] = [];
     for (let i = 0; i < 30; i++) {
       const d = new Date(yr, Math.floor(Math.random()*12), Math.floor(Math.random()*28)+1, Math.floor(Math.random()*8)+9, 0, 0);
@@ -130,52 +155,79 @@ const Journal: React.FC = () => {
     setForceTick(v => v + 1);
   };
 
+  const handleSearch = (query: string) => {
+    setFilters(s => ({ ...s, search: query }));
+  };
+
+  const handleDateChange = (from: string, to: string) => {
+    setFilters(s => ({ ...s, dateFrom: from, dateTo: to }));
+  };
+
+  const handleFilterChange = (newFilters: {
+    status: string;
+    symbol: string;
+    strategy: string;
+    year: number;
+  }) => {
+    setFilters(s => ({
+      ...s,
+      status: newFilters.status as 'all' | 'win' | 'loss',
+      instrument: newFilters.symbol,
+      strategy: newFilters.strategy,
+      year: String(newFilters.year)
+    }));
+  };
+
+  const exportCSV = () => {
+    const csvContent = trades.map(t => {
+      return [
+        t.date,
+        t.instrument,
+        t.side,
+        t.entryPrice,
+        t.exitPrice,
+        t.quantity,
+        (t.exitPrice - t.entryPrice) * (t.side === 'Buy' || t.side === 'Long' ? 1 : -1) * t.quantity,
+        t.strategy,
+        t.notes
+      ].join(',');
+    }).join('\n');
+    const encodedUri = encodeURI(`data:text/csv;charset=utf-8,${csvContent}`);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'trades.csv');
+    link.click();
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setForceTick(v => v + 1); // Refresh data
+    }, 5000); // Update every 5 seconds
+  
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div className="journal-page space-y-8">
       <h2 className="heading">Trade Journal</h2>
 
       {/* Top controls */}
       <section className="surface-card p-4 space-y-3 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1">
-            <Input label="Search symbols, strategies, notes" value={filters.search} onChange={v => setFilters(s => ({...s, search: v}))} />
-          </div>
-          <div className="md:w-64">
-            <Input label="Date from" type="date" value={filters.dateFrom} onChange={v => setFilters(s=>({...s, dateFrom: v}))} />
-          </div>
-          <div className="md:w-64">
-            <Input label="Date to" type="date" value={filters.dateTo} onChange={v => setFilters(s=>({...s, dateTo: v}))} />
-          </div>
-          <div className="self-start -mt-1 md:-mt-2 flex items-center gap-2">
-            <button onClick={loadDemoTrades} className="btn-primary">Load Demo Data</button>
-            <button
-              onClick={() => {
-                if (confirm('Clear all journal trades? This cannot be undone.')) {
-                  clearTrades();
-                  setForceTick(v => v + 1);
-                }
-              }}
-              className="btn-outline-danger"
-            >
-              Clear Data
-            </button>
-            <button onClick={onAddTradingDay} className="btn-secondary">+ Add Trading Day</button>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <Select label="All Results" value={filters.status} onChange={v => setFilters(s => ({...s, status: v as any}))}
-            options={[{label:'All Results',value:'all'},{label:'Wins',value:'win'},{label:'Losses',value:'loss'}]} />
-          <Select label="All Symbols" value={filters.instrument} onChange={v => setFilters(s => ({...s, instrument: v}))}
-            options={[{label:'All Symbols', value:''}, ...symbols.map(s => ({label:s, value:s}))]} />
-          <Select label="All Strategies" value={filters.strategy} onChange={v => setFilters(s => ({...s, strategy: v}))}
-            options={[{label:'All Strategies', value:''}, ...strategies.map(s => ({label:s, value:s}))]} />
-          <div className="flex items-end gap-2">
-            <label className="text-sm w-full">
-              <span className="block mb-1 text-slate-600">Year</span>
-              <input type="number" value={year} onChange={e=>setYear(Number(e.target.value)||year)} className="input" />
-            </label>
-          </div>
-        </div>
+        <FilterPanel
+          symbols={symbols}
+          strategies={strategies}
+          onSearch={handleSearch}
+          onDateChange={handleDateChange}
+          onFilterChange={handleFilterChange}
+          onLoadDemo={loadDemoTrades}
+          onClearData={() => {
+            if (confirm('Clear all journal trades?')) {
+              clearTrades();
+              setForceTick(v => v + 1);
+            }
+          }}
+          onAddTrade={onAddTradingDay}
+        />
       </section>
 
       {/* Snapshot */}
@@ -201,8 +253,109 @@ const Journal: React.FC = () => {
             </div>
           </Card>
         </div>
-        <Card title="Trading Activity" className="border border-slate-300 hover:border-slate-300 dark:hover:border-slate-700"><ActivityHeatmap year={year} dayAgg={dayAgg} /></Card>
-        <Card title="Equity Curve"><EquityChart points={m.equity} /></Card>
+        <Card title="Trading Activity" className="border border-slate-300 hover:border-slate-300 dark:hover:border-slate-700"><ActivityHeatmap year={new Date().getFullYear()} dayAgg={dayAgg} /></Card>
+        <Card title="Equity Curve">
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
+                  Performance Chart
+                </h2>
+                <div className="flex gap-4 mt-2">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                    <span className="text-sm text-slate-300">Total: ₹{m.totalPnL.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-400"></span>
+                    <span className="text-sm text-slate-300">Loss: ₹{Math.abs(m.totalPnL * 0.05).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+              <span className="mt-2 md:mt-0 px-3 py-1 rounded-full bg-slate-700 text-slate-200 text-sm">
+                {trades.length} trades
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
+                <div className="text-slate-400 text-sm mb-1">Win Rate</div>
+                <div className="text-3xl font-bold text-emerald-400">{m.winRate.toFixed(1)}%</div>
+                <div className="text-xs text-slate-500 mt-1">{m.wins}W / {m.losses}L</div>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
+                <div className="text-slate-400 text-sm mb-1">Max Drawdown</div>
+                <div className="text-3xl font-bold text-red-400">₹{m.worst?.pnl.toFixed(2) || '0'}</div>
+                <div className="text-xs text-slate-500 mt-1">Worst trade</div>
+              </div>
+            </div>
+
+            <div className="h-80 w-full">
+              <ResponsiveContainer>
+                <BarChart 
+                  data={dummyData}
+                  margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                >
+                  <defs>
+                    <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4ade80" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#16a34a" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    tickLine={{ stroke: '#475569' }}
+                    axisLine={{ stroke: '#475569' }}
+                    tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
+                  />
+                  <YAxis 
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                    tickLine={{ stroke: '#475569' }}
+                    axisLine={{ stroke: '#475569' }}
+                    tickFormatter={(value) => `₹${value >= 1000 ? `${(value/1000).toFixed(1)}k` : value}`}
+                  />
+                  <Tooltip
+                    contentStyle={{ 
+                      background: 'rgba(15, 23, 42, 0.9)',
+                      border: '1px solid #1e293b',
+                      borderRadius: '8px',
+                      backdropFilter: 'blur(4px)',
+                      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                    }}
+                    formatter={(value) => [`₹${value}`, 'Amount']}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    fill="url(#colorBar)" 
+                    radius={[4, 4, 0, 0]}
+                    animationDuration={800}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#f97316" 
+                    strokeWidth={2}
+                    dot={false}
+                    animationDuration={800}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex justify-center gap-8 mt-6 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-gradient-to-br from-emerald-400 to-green-600"></span>
+                <span className="text-slate-300">Cumulative P&L</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-orange-400"></span>
+                <span className="text-slate-300">Net After Brokerage</span>
+              </div>
+            </div>
+          </div>
+        </Card>
       </section>
 
       {/* Inline log form removed; using modal only */}
@@ -241,14 +394,67 @@ const Journal: React.FC = () => {
               <div className={`text-lg font-semibold ${
                 showPnlPopup.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
               }`}>
-                {showPnlPopup.pnl >= 0 ? 'Profit' : 'Loss'}: ₹{Math.abs(showPnlPopup.pnl).toFixed(0)}
+                {showPnlPopup.pnl >= 0 ? '+' : ''}{showPnlPopup.pnl.toFixed(2)}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* All trades table moved to Trade page */}
+      {/* All trades table */}
+      <section className="space-y-3">
+        <h3 className="text-xl font-semibold">Trade List</h3>
+        <div className="bg-slate-900 rounded-2xl p-5 shadow-xl border border-slate-800">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-200">Trade List</h3>
+              <p className="text-slate-400 text-sm">{trades.length} trades</p>
+            </div>
+            <button 
+              onClick={exportCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
+            >
+              <FaDownload className="text-slate-300" /> 
+              <span className="text-slate-200">Export CSV</span>
+            </button>
+          </div>
+          
+          <div className="overflow-auto no-scrollbar max-h-[70vh]">
+            <table className="min-w-full text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-800/80 backdrop-blur-sm">
+                <tr className="text-left border-b border-slate-700">
+                  {['Date','Instrument','Side','Entry','Exit','Qty','P&L','Strategy','Notes'].map((label) => (
+                    <th key={label} className="py-3 px-4 text-slate-300 font-medium">
+                      <span>{label}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map(t => {
+                  const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+                  const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                  return (
+                    <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-800/50 transition-colors">
+                      <td className="py-3 px-4 whitespace-nowrap text-slate-200">{new Date(t.date).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-slate-200">{t.instrument}</td>
+                      <td className={`py-3 px-4 ${t.side === 'Buy' ? 'text-emerald-400' : 'text-red-400'}`}>{t.side}</td>
+                      <td className="py-3 px-4 text-slate-200">{t.entryPrice.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-slate-200">{t.exitPrice.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-slate-200">{t.quantity}</td>
+                      <td className={`py-3 px-4 font-medium ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-slate-400">{t.strategy || '-'}</td>
+                      <td className="py-3 px-4 text-slate-400">{t.notes || '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
       {/* Insights */}
       <section className="space-y-3">
@@ -268,11 +474,11 @@ const Journal: React.FC = () => {
       {/* Monthly calendar + Weekday breakup */}
       <section className="space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card title={`${monthName(month)} ${year}`}>
-            <MonthCalendar year={year} month={month} setMonth={setMonth} dayAgg={dayAgg} onSelectDate={showPnlCard} />
+          <Card title={`${monthName(month)} ${new Date().getFullYear()}`}>
+            <MonthCalendar year={new Date().getFullYear()} month={month} setMonth={setMonth} dayAgg={dayAgg} onSelectDate={showPnlCard} />
           </Card>
           <Card title="Overall Week Day Breakup">
-            <WeekdayBreakup dayAgg={dayAgg} year={year} month={month} />
+            <WeekdayBreakup dayAgg={dayAgg} />
           </Card>
         </div>
       </section>
@@ -299,44 +505,6 @@ const Card: React.FC<{ title: string; children: React.ReactNode; className?: str
     {children}
   </div>
 );
-
-const EquityChart: React.FC<{ points: { t: string; equity: number }[] }> = ({ points }) => {
-  if (!points.length) return <div className="text-slate-500">No data yet. Add trades to see equity curve.</div>;
-
-  const width = 600;
-  const height = 200;
-  const pad = 20;
-  const xs = points.map((_, i) => i);
-  const ys = points.map(p => p.equity);
-  const xMin = 0, xMax = Math.max(1, xs[xs.length - 1]);
-  const yMin = Math.min(0, ...ys);
-  const yMax = Math.max(0, ...ys);
-  const xScale = (x: number) => pad + (x - xMin) * (width - 2 * pad) / (xMax - xMin || 1);
-  const yScale = (y: number) => height - pad - (y - yMin) * (height - 2 * pad) / ((yMax - yMin) || 1);
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(p.equity)}`).join(' ');
-
-  return (
-    <svg width="100%" viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
-      <line x1={pad} y1={yScale(0)} x2={width - pad} y2={yScale(0)} stroke="#cbd5e1" strokeDasharray="4 4" />
-      <path d={d} fill="none" stroke="#6366f1" strokeWidth={2} />
-    </svg>
-  );
-};
-
-export default Journal;
-
-// ---------- Subcomponents ----------
-
-const Input: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }>
-  = ({ label, value, onChange, type = 'text' }) => (
-  <label className="text-sm">
-    <span className="block mb-1 text-slate-600">{label}</span>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      className="input" />
-  </label>
-);
-
-// Using custom Select from './ui/Select'
 
 const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPnl?: number; onCancel?: () => void }> = ({ onSaved, initialDate, initialPnl, onCancel }) => {
   const [form, setForm] = useState<Partial<Trade>>({
@@ -467,7 +635,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
         <div className="text-sm md:col-span-1">
           <div className="block mb-1 text-slate-600">P&L</div>
           <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
-            {pnl>=0 ? '▲ ' : '▼ '} {pnl.toFixed(2)}
+            {pnl>=0 ? '+' : ''}{pnl.toFixed(2)}
           </div>
         </div>
       </div>
@@ -560,8 +728,8 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
             };
             return (
               <button
-                key={mode}
                 type="button"
+                key={mode}
                 onClick={onClick}
                 className={`px-4 py-2 rounded-xl border font-medium focus:outline-none focus:ring-2 focus:ring-offset-1 ${cls}`}
               >
@@ -652,7 +820,7 @@ const RRMetrics: React.FC<{ entry: number; sl?: number; tp?: number; side: Trade
 
   const chip = (label: string, val: string | number, tone: 'neutral'|'pos'|'neg'='neutral') => (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs border ${
-      tone==='pos' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700' : tone==='neg' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-200 dark:border-red-700' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+      tone==='pos' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : tone==='neg' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
     }`}>
       {label}: {val}
     </span>
@@ -742,6 +910,107 @@ const ActivityHeatmap: React.FC<{ year: number; dayAgg: Map<string, { pnl: numbe
   );
 };
 
+// ---------- Weekday Breakup bar chart (Modern Enhanced) ----------
+const WeekdayBreakup: React.FC<{ dayAgg: Map<string,{pnl:number;count:number}> }> = ({ dayAgg }) => {
+  // Calculate metrics
+  const sums = [0,0,0,0,0,0,0];
+  const counts = [0,0,0,0,0,0,0];
+  
+  for (const [key, {pnl, count}] of dayAgg.entries()) {
+    const dow = new Date(key).getDay();
+    sums[dow] += pnl;
+    counts[dow] += count;
+  }
+  
+  const max = Math.max(1, ...sums.map(v => Math.abs(v)));
+  const labels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  return (
+    <div className="p-4 sm:p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start mb-4 sm:mb-6 gap-3">
+        <div>
+          <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-slate-100">Weekday Performance</h3>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Performance breakdown by day of week</p>
+        </div>
+        <div className="flex gap-2">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+            <span className="text-xs">Profitable</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 rounded-full bg-red-500"></div>
+            <span className="text-xs">Loss</span>
+          </div>
+        </div>
+      </div>
+      
+      {/* Graph */}
+      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-4">
+        {sums.map((v, i) => {
+          const pct = Math.max(8, Math.abs(v) / max * 100);
+          const positive = v >= 0;
+          
+          return (
+            <div key={i} className="flex flex-col items-center">
+              <div className="w-full flex flex-col items-center mb-1 sm:mb-2">
+                <div className="relative w-full h-24 sm:h-40 flex flex-col justify-end">
+                  <div 
+                    className={`w-full rounded-t-lg transition-all duration-500 ease-out ${positive ? 'bg-emerald-500' : 'bg-red-500'} group-hover:opacity-90`}
+                    style={{ height: `${pct}%` }}
+                  >
+                    <div className="absolute -top-6 left-0 right-0 text-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="inline-block bg-slate-900 text-white text-xs px-2 py-1 rounded">
+                        ₹{v.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-200">{labels[i]}</div>
+                <div className={`text-2xs sm:text-xs ${positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                  {v === 0 ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`}
+                </div>
+                {counts[i] > 0 && (
+                  <div className="text-2xs text-slate-500 dark:text-slate-400 mt-1">
+                    {counts[i]} trade{counts[i] !== 1 ? 's' : ''}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Stats */}
+      <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 dark:border-slate-700">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-center">
+          <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Best Day</div>
+            <div className="text-sm sm:text-base font-medium text-slate-800 dark:text-slate-100">
+              {labels[sums.indexOf(Math.max(...sums))]}
+            </div>
+          </div>
+          <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Worst Day</div>
+            <div className="text-sm sm:text-base font-medium text-slate-800 dark:text-slate-100">
+              {labels[sums.indexOf(Math.min(...sums))]}
+            </div>
+          </div>
+          <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+            <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Total</div>
+            <div className={`text-sm sm:text-base font-medium ${sums.reduce((a,b) => a+b, 0) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              ₹{sums.reduce((a,b) => a+b, 0).toFixed(2)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ---------- Month Calendar with daily P&L ----------
 const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number)=>void; dayAgg: Map<string,{pnl:number;count:number}>; onSelectDate?: (isoDate: string, pnl?: number)=>void }>
   = ({ year, month, setMonth, dayAgg, onSelectDate }) => {
@@ -786,59 +1055,17 @@ const MonthCalendar: React.FC<{ year: number; month: number; setMonth: (m:number
   );
 };
 
-// ---------- Weekday Breakup bar chart (Overall, modern) ----------
-const WeekdayBreakup: React.FC<{ dayAgg: Map<string,{pnl:number;count:number}>; year:number; month:number }>
-  = ({ dayAgg }) => {
-  // Overall sums across entire dataset
-  const sums = [0,0,0,0,0,0,0];
-  for (const [key, rec] of dayAgg.entries()) {
-    const dow = new Date(key).getDay();
-    sums[dow] += rec.pnl;
-  }
-  const max = Math.max(1, ...sums.map(v => Math.abs(v)));
-  const labels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-  return (
-    <div
-      className="relative h-56 px-2 py-3 rounded-xl"
-      style={{
-        backgroundImage:
-          'repeating-linear-gradient(to top, rgba(148,163,184,0.15) 0 1px, transparent 1px 24px)'
-      }}
-    >
-      <div className="relative mx-auto w-full max-w-[560px] h-full">
-        <div className="absolute left-0 right-0 bottom-12 h-px bg-slate-300/40 dark:bg-slate-700/40" />
-
-        <div className="flex items-end justify-between h-full gap-3">
-          {sums.map((v, i) => {
-            const pct = Math.max(6, Math.abs(v) / max * 100);
-            const positive = v >= 0;
-            const barClass = positive
-              ? 'from-emerald-500 to-emerald-400 border-emerald-600'
-              : 'from-red-500 to-red-400 border-red-600';
-            return (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1 select-none">
-                <div className="w-full h-40 flex items-end">
-                  <div
-                    className={`w-full rounded-md border bg-gradient-to-t ${barClass} transition-transform duration-200 hover:scale-[1.02]`}
-                    style={{ height: `${pct}%` }}
-                    title={`${labels[i]}: ${v.toFixed(2)}`}
-                  />
-                </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">{labels[i]}</div>
-
-                <div className={`text-[11px] font-medium ${positive ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
-                  {v === 0 ? '—' : v.toFixed(0)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 function monthName(m: number) {
   return ['January','February','March','April','May','June','July','August','September','October','November','December'][m] || '';
 }
+
+const Input: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }>
+  = ({ label, value, onChange, type = 'text' }) => (
+  <label className="text-sm">
+    <span className="block mb-1 text-slate-600">{label}</span>
+    <input type={type} value={value} onChange={e => onChange(e.target.value)}
+      className="input" />
+  </label>
+);
+
+export default Journal;

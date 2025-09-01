@@ -25,9 +25,9 @@ const Dashboard: React.FC = () => {
 
   const portfolioStats = [
     { title: 'Total Portfolio Value', value: '₹12,45,678', change: '+₹23,412', percentage: '+1.92%', icon: DollarSign },
-    { title: 'Day\'s Gain/Loss', value: '+₹12,345', change: '+0.98%', percentage: 'Today', icon: TrendingUp },
+  
     { title: 'Total Positions', value: '23', change: '+2', percentage: 'Active', icon: Activity },
-    { title: 'Watchlist Items', value: '47', change: '+5', percentage: 'Tracking', icon: Eye },
+    
   ];
 
   return (
@@ -48,23 +48,59 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Portfolio Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {portfolioStats.map((stat, index) => {
           const Icon = stat.icon;
+          const isPositive = stat.change.startsWith('+');
+  
           return (
-            <div key={index} className="surface-card p-6 hover:shadow-md transition-all duration-200 subtle-hover">
+            <div key={index} className="surface-card p-6 hover:shadow-md transition-all duration-200 subtle-hover w-full">
               <div className="flex items-center justify-between">
                 <div className="p-3 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-xl">
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
-                  <p className="text-sm text-success-700">{stat.change}</p>
+                  <div className="flex items-center justify-end gap-2">
+                    {isPositive ? (
+                      <ArrowUpRight className="h-4 w-4 text-success-600" />
+                    ) : (
+                      <ArrowDownRight className="h-4 w-4 text-danger-600" />
+                    )}
+                    <p className={`text-sm ${isPositive ? 'text-success-700' : 'text-danger-700'}`}>
+                      {stat.change}
+                    </p>
+                  </div>
                 </div>
               </div>
+              
               <div className="mt-4">
                 <h3 className="font-semibold text-slate-800">{stat.title}</h3>
                 <p className="text-sm text-slate-600">{stat.percentage}</p>
+                
+                {/* Additional content */}
+                <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-slate-500">Daily Trend</span>
+                    <span className={`text-xs font-medium ${isPositive ? 'text-success-700' : 'text-danger-700'}`}>
+                      {isPositive ? 'Increasing' : 'Decreasing'}
+                    </span>
+                  </div>
+                  
+                  {stat.title.includes('Portfolio') && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-slate-500">All Time High</span>
+                      <span className="text-xs font-medium text-slate-800">₹13,12,456</span>
+                    </div>
+                  )}
+                  
+                  {stat.title.includes('Positions') && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-slate-500">Active Trades</span>
+                      <span className="text-xs font-medium text-slate-800">15</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -130,8 +166,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
       {/* Statistics Section */}
-     
-        
+       
         {/* Top Movers */}
         <div className="surface-card p-6">
           <h2 className="text-xl font-bold text-slate-900 mb-4">Top Movers</h2>

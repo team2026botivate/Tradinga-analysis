@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { getTrades, toCSV, Trade as JournalTrade } from '../store/trades';
+import { getTrades, toCSV, addTrade, Trade as JournalTrade } from '../store/trades';
 import Select from './ui/Select';
 import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft } from 'lucide-react';
 
@@ -179,11 +179,43 @@ const Trade: React.FC = () => {
         h[tx.symbol] = cur;
       }
       setSuccess(`Purchased ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${tx.orderType})`);
+      // Log to Journal store as a trade entry
+      try {
+        const jt: JournalTrade = {
+          id: Math.random().toString(36).slice(2,9),
+          date: new Date(tx.timestamp).toISOString(),
+          instrument: tx.symbol,
+          side: 'Buy',
+          entryPrice: tx.price,
+          exitPrice: tx.price, // initial exit same as entry; can be edited later in Journal
+          quantity: tx.qty,
+          strategy: '',
+          entryReason: 'Purchase from Trade tab',
+          notes: `Order: ${tx.orderType}`,
+        };
+        addTrade(jt as any);
+      } catch {}
     } else {
       // SELL: reduce qty, keep avgPrice same
       const newQty = Math.max(0, cur.qty - tx.qty);
       h[tx.symbol] = { ...cur, qty: newQty };
       setSuccess(`Sold ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${tx.orderType})`);
+      // Optionally also log Sell to Journal
+      try {
+        const jt: JournalTrade = {
+          id: Math.random().toString(36).slice(2,9),
+          date: new Date(tx.timestamp).toISOString(),
+          instrument: tx.symbol,
+          side: 'Sell',
+          entryPrice: tx.price,
+          exitPrice: tx.price,
+          quantity: tx.qty,
+          strategy: '',
+          entryReason: 'Sale from Trade tab',
+          notes: `Order: ${tx.orderType}`,
+        };
+        addTrade(jt as any);
+      } catch {}
     }
 
     storage.setHoldings(h);
@@ -309,7 +341,7 @@ const Trade: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Trade</h1>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Trade</h1>
           <p className="text-slate-600 mt-1">Buy or sell stocks. Transactions are stored locally.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -413,7 +445,7 @@ const Trade: React.FC = () => {
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm card-appear subtle-hover">
         {activeTab === 'BUY' ? (
           <>
-            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><ShoppingCart className="h-5 w-5"/> Purchase</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><ShoppingCart className="h-5 w-5"/> Purchase</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Stock Symbol</label>
@@ -471,7 +503,7 @@ const Trade: React.FC = () => {
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-slate-900 flex items-center gap-2"><TrendingUp className="h-5 w-5"/> Sell</h2>
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><TrendingUp className="h-5 w-5"/> Sell</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Stock Symbol</label>
@@ -525,9 +557,9 @@ const Trade: React.FC = () => {
       {/* Confirmation Dialog */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white/90 backdrop-blur border border-slate-200 p-6 shadow-xl modal-appear">
-            <h3 className="text-lg font-semibold text-slate-900 mb-2">Confirm {showConfirm.action === 'BUY' ? 'Purchase' : 'Sale'}</h3>
-            <p className="text-slate-700 text-sm">{showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹{Number(showConfirm.payload.price).toFixed(2)} • {showConfirm.payload.orderType}</p>
+          <div className="w-full max-w-md rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 p-6 shadow-xl modal-appear">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Confirm {showConfirm.action === 'BUY' ? 'Purchase' : 'Sale'}</h3>
+            <p className="text-slate-700 dark:text-slate-300 text-sm">{showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹{Number(showConfirm.payload.price).toFixed(2)} • {showConfirm.payload.orderType}</p>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowConfirm(null)} className="btn bg-slate-100 text-slate-700 subtle-hover">Cancel</button>
               <button onClick={confirm} className="btn bg-blue-600 text-white hover:bg-blue-700 subtle-hover">Confirm</button>
@@ -550,9 +582,9 @@ const Trade: React.FC = () => {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
           <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
           <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
-              <div className="flex items-center justify-between p-4 border-b border-slate-200">
-                <h3 className="text-lg font-semibold text-slate-900">Add Trading Day</h3>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trading Day</h3>
                 <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
               </div>
               <div className="p-4">
@@ -571,9 +603,9 @@ const Trade: React.FC = () => {
         </div>
       )}
       {/* All Trades from Journal */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm card-appear subtle-hover">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm card-appear subtle-hover">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-semibold text-slate-900">All Trades</h2>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">All Trades</h2>
           <button onClick={() => setTick(v => v + 1)} className="btn bg-slate-100 text-slate-700 subtle-hover">Refresh</button>
         </div>
         <div className="flex justify-end mb-3">
@@ -581,7 +613,7 @@ const Trade: React.FC = () => {
         </div>
         <div className="overflow-auto no-scrollbar max-h-[70vh] overscroll-contain">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-50/80 backdrop-blur-sm">
+            <thead className="sticky top-0 z-10 bg-slate-50/80 dark:bg-slate-800/60 backdrop-blur-sm">
               <tr className="text-left border-b border-slate-200">
                 {(['Date','Instrument','Side','Entry','Exit','Qty','P&L','Strategy','Tags','Notes'] as const).map((label, idx) => {
                   const keyMap: Record<number, SortKey | undefined> = {0:'date',1:'instrument',2:'side',3:'entryPrice',4:'exitPrice',5:'quantity',6:'pnl'};
@@ -590,7 +622,7 @@ const Trade: React.FC = () => {
                     <th key={label} className="py-2 pr-4">
                       {key ? (
                         <button
-                          className="inline-flex items-center gap-1 text-slate-700 hover:text-slate-900"
+                          className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
                           onClick={() => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))}
                         >
                           <span>{label}</span>

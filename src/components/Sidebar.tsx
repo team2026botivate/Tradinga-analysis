@@ -42,9 +42,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'journal', label: 'Trade Journal', icon: BookOpen },
-    { id: 'analysis', label: 'Analysis', icon: TrendingUp },
-    { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
-    { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
+    // { id: 'analysis', label: 'Analysis', icon: TrendingUp },
+    // { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
+    // { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -52,10 +52,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
     <div
       className={
         `fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-all duration-300 z-50 flex flex-col overflow-y-auto no-scrollbar ` +
-        // Mobile (default): slide-in drawer width 64, hidden when collapsed
-        `${collapsed ? '-translate-x-full w-64' : 'translate-x-0 w-64'} ` +
-        // md and up: always visible, width depends on collapsed state
-        `${collapsed ? 'md:translate-x-0 md:w-16' : 'md:translate-x-0 md:w-64'}`
+        `${collapsed ? '-translate-x-full w-20' : 'translate-x-0 w-64'} ` +
+        `${collapsed ? 'md:translate-x-0 md:w-20' : 'md:translate-x-0 md:w-64'}`
       }
     >
       {/* Header */}
@@ -119,8 +117,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
                       : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className="h-5 w-5" />
-                  {!collapsed && <span className="font-medium">{item.label}</span>}
+                  <Icon className="text-2xl" />
+                  {!collapsed && <span className="ml-3 font-medium">{item.label}</span>}
                 </button>
               </li>
             );
