@@ -20,9 +20,10 @@ interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
   onLogout?: () => void;
+  userEmail: string | null;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout, userEmail }) => {
   const [isDark, setIsDark] = useState<boolean>(() => {
     const saved = localStorage.getItem('theme');
     if (saved) return saved === 'dark';
@@ -93,8 +94,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
           </div>
           {!collapsed && (
             <div>
-              <p className="font-semibold text-slate-800 dark:text-slate-100">John Trader</p>
-              <p className="text-sm text-slate-600 dark:text-slate-400">Pro Member</p>
+              <p className="font-semibold text-slate-800 dark:text-slate-100">{userEmail || "Guest"}</p>
+              
             </div>
           )}
         </div>

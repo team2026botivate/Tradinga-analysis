@@ -15,6 +15,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAuthed, setIsAuthed] = useState<boolean>(Boolean(localStorage.getItem('auth_token')));
+  const [loggedInUserEmail, setLoggedInUserEmail] = useState<string | null>(sessionStorage.getItem('auth_email'));
 
   const handleLogin = (email: string) => {
     // token may have been set by Login when Remember me is checked
@@ -24,6 +25,8 @@ function App() {
     }
     sessionStorage.setItem('auth_email', email);
     setIsAuthed(true);
+    setLoggedInUserEmail(email);
+    setSidebarCollapsed(true); // Collapse sidebar on login
   };
 
   // Listen for app-wide navigation events (e.g., from Journal after saving a trade)
@@ -42,6 +45,7 @@ function App() {
     localStorage.removeItem('auth_token');
     sessionStorage.removeItem('auth_email');
     setIsAuthed(false);
+    setLoggedInUserEmail(null);
     setActiveTab('dashboard');
   };
 
@@ -79,6 +83,7 @@ function App() {
           collapsed={sidebarCollapsed}
           setCollapsed={setSidebarCollapsed}
           onLogout={handleLogout}
+          userEmail={loggedInUserEmail}
         />
         {/* Mobile backdrop when sidebar is open */}
         {!sidebarCollapsed && (
