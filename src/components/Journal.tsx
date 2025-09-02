@@ -362,22 +362,21 @@ const Journal: React.FC = () => {
 
       {/* Trade Form Modal */}
       {showFormModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-2 sm:p-4 md:p-8 overscroll-none">
           <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
-          <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[92vh] overflow-auto no-scrollbar">
-              <div className="sticky top-0 z-10 flex items-center justify-between p-4 border-b border-slate-200 bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trade</h3>
+          <div className="relative w-full max-w-full sm:max-w-3xl mx-0 my-2 sm:my-6 md:my-10">
+            <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[90vh] sm:max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="sticky top-0 z-10 flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trade</h3>
                 <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
               </div>
-              <div className="p-4">
+              <div className="p-3 sm:p-4">
                 <TradeForm
                   initialDate={draftDate}
                   onSaved={() => {
                     setForceTick(v => v + 1);
                     setShowFormModal(false);
                   }}
-                  onCancel={() => setShowFormModal(false)}
                 />
               </div>
             </div>
