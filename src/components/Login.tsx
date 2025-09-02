@@ -16,18 +16,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
 
-    // Simulate auth (replace with real API later)
+    setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      if (email && password) {
-        if (remember) localStorage.setItem('auth_token', 'demo');
-        sessionStorage.setItem('auth_email', email);
-        onLogin(email);
-      } else {
-        setError('Please enter email and password');
-      }
+      if (remember) localStorage.setItem('auth_token', 'demo');
+      sessionStorage.setItem('auth_email', email);
+      onLogin(email);
     }, 600);
   };
 
@@ -57,8 +57,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     autoComplete="email"
-                    autoCapitalize="none"
-                    autoCorrect="off"
                     className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

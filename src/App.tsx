@@ -9,13 +9,28 @@ import Settings from './components/Settings';
 import Login from './components/Login';
 import Trade from './components/Trade';
 import Journal from './components/Journal';
- 
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [isAuthed, setIsAuthed] = useState<boolean>(Boolean(localStorage.getItem('auth_token')));
-  const [loggedInUserEmail, setLoggedInUserEmail] = useState<string | null>(sessionStorage.getItem('auth_email'));
+
+  // Load sidebar collapsed state from localStorage (default = true after login)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('sidebar_collapsed');
+    return saved ? saved === 'true' : true; // Sidebar hidden by default
+  });
+
+  const [isAuthed, setIsAuthed] = useState<boolean>(
+    Boolean(localStorage.getItem('auth_token'))
+  );
+  const [loggedInUserEmail, setLoggedInUserEmail] = useState<string | null>(
+    sessionStorage.getItem('auth_email')
+  );
+
+  // Handle sidebar toggle and persist the state
+  const handleSidebarToggle = (collapsed: boolean) => {
+    setSidebarCollapsed(collapsed);
+    localStorage.setItem('sidebar_collapsed', String(collapsed));
+  };
 
   const handleLogin = (email: string) => {
     // token may have been set by Login when Remember me is checked
@@ -26,7 +41,7 @@ function App() {
     sessionStorage.setItem('auth_email', email);
     setIsAuthed(true);
     setLoggedInUserEmail(email);
-    setSidebarCollapsed(true); // Collapse sidebar on login
+    handleSidebarToggle(true); // Collapse sidebar on login and persist it
   };
 
   // Listen for app-wide navigation events (e.g., from Journal after saving a trade)
@@ -47,6 +62,7 @@ function App() {
     setIsAuthed(false);
     setLoggedInUserEmail(null);
     setActiveTab('dashboard');
+    handleSidebarToggle(true); // Keep sidebar hidden after logout
   };
 
   const renderContent = () => {
@@ -81,24 +97,29 @@ function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           collapsed={sidebarCollapsed}
-          setCollapsed={setSidebarCollapsed}
+          setCollapsed={handleSidebarToggle}
           onLogout={handleLogout}
           userEmail={loggedInUserEmail}
         />
+
         {/* Mobile backdrop when sidebar is open */}
         {!sidebarCollapsed && (
           <div
             className="fixed inset-0 bg-black/40 md:hidden z-40"
-            onClick={() => setSidebarCollapsed(true)}
+            onClick={() => handleSidebarToggle(true)}
           />
         )}
 
-        <main className={`flex-1 min-w-0 transition-all duration-300 ml-0 overflow-y-auto no-scrollbar max-h-screen ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
+        <main
+          className={`flex-1 min-w-0 transition-all duration-300 ml-0 overflow-y-auto no-scrollbar max-h-screen ${
+            sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'
+          }`}
+        >
           <div className="container-page py-6 min-w-0">
             {/* Mobile menu button */}
             <div className="md:hidden mb-4">
               <button
-                onClick={() => setSidebarCollapsed(false)}
+                onClick={() => handleSidebarToggle(false)}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200"
                 aria-label="Open menu"
               >
