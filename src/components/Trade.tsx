@@ -581,7 +581,7 @@ const Trade: React.FC = () => {
       {showFormModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
           <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
-          <div className="relative w-full max-w-3xl mx-0 my-6 md:my-10">
+          <div className="relative w-full max-w-full md:max-w-3xl mx-0 my-6 md:my-10">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
               <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trading Day</h3>
@@ -829,8 +829,8 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       {/* Single trade snapshot (optional) */}
       <div className="space-y-2">
         <div className="text-sm font-medium text-slate-800">Trade Snapshot (optional)</div>
-        <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
-          <label className="text-xs md:col-span-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end">
+          <label className="text-xs sm:col-span-2 md:col-span-2">
             <span className="block mb-1 text-slate-600">Instrument</span>
             <input value={instrument} onChange={e=>setInstrument(e.target.value)} className="input" placeholder="e.g., RELIANCE" />
           </label>
@@ -852,17 +852,17 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
             <span className="block mb-1 text-slate-600">Qty</span>
             <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="input" />
           </label>
-          <div className="text-xs md:col-span-1">
+          <div className="text-xs sm:col-span-2 md:col-span-1">
             <div className="mb-1 text-slate-600">P&L</div>
             <div className={`px-3 py-2 rounded-xl border text-center ${pnl>=0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{pnl.toFixed(2)}</div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <label className="text-xs md:col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <label className="text-xs sm:col-span-2 md:col-span-2">
             <span className="block mb-1 text-slate-600">Strategy</span>
             <input value={strategy} onChange={e=>setStrategy(e.target.value)} className="input" placeholder="e.g., Breakout" />
           </label>
-          <label className="text-xs md:col-span-2">
+          <label className="text-xs sm:col-span-2 md:col-span-2">
             <span className="block mb-1 text-slate-600">Tags</span>
             <input value={tagsStr} onChange={e=>setTagsStr(e.target.value)} className="input" placeholder="comma separated" />
           </label>
@@ -872,7 +872,7 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm text-slate-700">Trading Result</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
           {[
             {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
             {k:'loss', label:'Loss', cls:'border-red-600 text-red-700', bg:'bg-red-600 text-white'},
@@ -892,7 +892,7 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       </div>
 
       {/* Net MTM and Brokerage */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
         <label className="block text-sm">
           <span className="block mb-1 text-slate-700">Net MTM Amount *</span>
           <div className="relative">
@@ -923,8 +923,8 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
               className={`px-3 py-1.5 rounded-full text-sm border ${strategies.includes(s) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
             >{s}</button>
           ))}
-          <div className="inline-flex items-center gap-2">
-            <input value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} placeholder="Add custom strategy..." className="px-3 py-1.5 rounded-full border border-slate-300 text-sm" />
+          <div className="inline-flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <input value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} placeholder="Add custom strategy..." className="px-3 py-1.5 rounded-full border border-slate-300 text-sm flex-1" />
             <button type="button" onClick={addCustomStrategy} className="btn-secondary text-sm">Add</button>
           </div>
         </div>

@@ -596,21 +596,21 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
 
   return (
     <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 surface-card p-4 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <Input label="Date & Time" type="datetime-local" value={form.date || ''} onChange={v => set('date', v)} />
         <Input label="Exit Date" type="datetime-local" value={form.exitDate || ''} onChange={v => set('exitDate', v)} />
       </div>
 
-      <div className="text-sm font-semibold text-slate-800 mt-1">Trade Snapshot (optional)</div>
+      
       <div className="h-px bg-slate-200" />
 
       {/* Compact row: Instrument ▲ Side ▲ Entry ▲ Exit ▲ Qty ▲ P&L */}
-      <div className="grid grid-cols-1 md:grid-cols-8 gap-3 items-end">
-        <label className="text-sm md:col-span-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end">
+        <label className="text-sm sm:col-span-2 md:col-span-2">
           <span className="block mb-1 text-slate-600">Instrument</span>
           <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input" />
         </label>
-        <div className="md:col-span-1">
+        <div className="sm:col-span-1 md:col-span-1">
           <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
         </div>
         <label className="text-sm">
@@ -631,7 +631,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <span className="block mb-1 text-slate-600">Qty</span>
           <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input" />
         </label>
-        <div className="text-sm md:col-span-1">
+        <div className="text-sm sm:col-span-2 md:col-span-1">
           <div className="block mb-1 text-slate-600">P&L</div>
           <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
             {pnl>=0 ? '+' : ''}{pnl.toFixed(2)}
@@ -640,12 +640,12 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       </div>
 
       {/* Strategy ▲ Tags ▲ Notes */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <label className="text-sm md:col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <label className="text-sm sm:col-span-2 md:col-span-2">
           <span className="block mb-1 text-slate-600">Strategy</span>
           <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="input" />
         </label>
-        <label className="text-sm md:col-span-2">
+        <label className="text-sm sm:col-span-2 md:col-span-2">
           <span className="block mb-1 text-slate-600">Tags</span>
           <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="input" placeholder="comma separated (press Enter to add)" onKeyDown={e => {
             if (e.key === 'Enter') {
@@ -682,7 +682,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <input
           placeholder="Add custom strategy..."
           value={form.strategy || ''}
@@ -695,7 +695,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm font-semibold text-slate-800">Trading Result</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
           {["profit","loss","open","breakeven"].map(mode => {
             const active = (mode==="profit" && pnl>0) || (mode==="loss" && pnl<0);
             let cls = "";
@@ -742,7 +742,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       {/* Risk management */}
       <div className="h-px bg-slate-200" />
       <div className="text-sm font-semibold text-slate-800">Risk Management</div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Stop-Loss</span>
           <div className="relative">
@@ -772,7 +772,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
 
       {/* Notes */}
       <div className="h-px bg-slate-200" />
-      <div className="text-sm font-semibold text-slate-800">Notes</div>
+   
       <div className="grid grid-cols-1 gap-3">
         <label className="text-sm">
           <span className="block mb-1 text-slate-600">Notes</span>
@@ -783,13 +783,13 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       {/* Attachments */}
       <div className="h-px bg-slate-200" />
       <div className="text-sm font-semibold text-slate-800">Attachments</div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <label className="text-sm md:col-span-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+        <label className="text-sm sm:col-span-2">
           <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
           <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
           {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
         </label>
-        <div className="md:col-span-2 flex justify-end items-end gap-2 sticky bottom-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
+        <div className="sm:col-span-2 md:col-span-2 flex justify-end items-end gap-2 sticky bottom-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
           {onCancel && (
             <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
           )}
