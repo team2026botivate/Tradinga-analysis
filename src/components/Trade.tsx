@@ -698,6 +698,8 @@ type TradingDayRecord = {
   strategies: string[];
   notes?: string;
   // single trade snapshot (optional)
+
+  
   instrument?: string;
   side?: 'Buy'|'Sell'|'Long'|'Short';
   entryPrice?: number;
