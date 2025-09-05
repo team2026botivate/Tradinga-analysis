@@ -12,7 +12,7 @@ export type Trade = {
   takeProfit?: number;
   riskAmount?: number; // in currency
   riskPercent?: number; // in %
-  strategy?: string;
+  strategy: string; // Changed from optional to required
   entryReason?: string;
   exitReason?: string;
   screenshotName?: string;
@@ -137,7 +137,7 @@ export function toCSV(trades: Trade[]): string {
     t.takeProfit ?? '',
     t.riskAmount ?? '',
     t.riskPercent ?? '',
-    t.strategy ?? '',
+    t.strategy,
     (t.entryReason ?? '').replace(/\n/g,' '),
     (t.exitReason ?? '').replace(/\n/g,' '),
     t.screenshotName ?? '',

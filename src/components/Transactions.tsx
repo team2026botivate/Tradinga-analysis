@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { ArrowDownCircle, ArrowUpCircle, Download } from 'lucide-react';
+import { fetchTradesFromSheet } from '../lib/sheets';
+import Footer from './Footer';
 
 type Txn = {
   id: string;
@@ -11,63 +13,84 @@ type Txn = {
   total: number;
   timestamp: number;
   orderType: 'Market' | 'Limit' | 'Stop';
+  strategy: string;
 };
 
-const getTxns = (): Txn[] => {
-  try { return JSON.parse(localStorage.getItem('transactions') || '[]'); } catch { return []; }
+type Trade = {
+  id: string;
+  side: 'Buy' | 'Sell' | 'Long' | 'Short';
+  instrument: string;
+  quantity: number;
+  entryPrice: number;
+  date: string;
+  notes?: string;
+  strategy: string;
 };
 
 const formatINR = (n: number) => `₹${n.toFixed(2)}`;
 
+// Update adapter to handle all Trade side values
+const tradeToTxn = (trade: Trade): Txn => ({
+  id: trade.id,
+  type: trade.side === 'Buy' || trade.side === 'Long' ? 'BUY' : 'SELL',
+  symbol: trade.instrument,
+  name: trade.instrument,
+  qty: trade.quantity,
+  price: trade.entryPrice,
+  total: trade.entryPrice * trade.quantity,
+  timestamp: new Date(trade.date).getTime(), // Convert ISO string to timestamp
+  orderType: 'Market', // Assuming order type is Market for simplicity
+  strategy: trade.strategy
+});
+
 const Transactions: React.FC = () => {
   const [q, setQ] = useState('');
   const [type, setType] = useState<'ALL' | 'BUY' | 'SELL'>('ALL');
-  const [version, setVersion] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [txns, setTxns] = useState<Txn[]>([]);
 
-  const txns = useMemo(() => {
-    let items = getTxns();
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const trades = await fetchTradesFromSheet();
+        const txnsData = trades.map(tradeToTxn);
+        console.log('Transactions data:', txnsData); // Debug log
+        setTxns(txnsData);
+      } catch (err) {
+        setError('Failed to fetch transactions: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const trades = await fetchTradesFromSheet();
+      const txnsData = trades.map(tradeToTxn);
+      console.log('Transactions data:', txnsData); // Debug log
+      setTxns(txnsData);
+    } catch (err) {
+      setError('Failed to refresh transactions: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTxns = useMemo(() => {
+    let items = txns;
     if (type !== 'ALL') items = items.filter(t => t.type === type);
     if (q) items = items.filter(t => (t.symbol + ' ' + t.name).toLowerCase().includes(q.toLowerCase()));
     return items;
-  }, [q, type, version]);
-
-  const seedDemo = () => {
-    const now = Date.now();
-    const demoTx: Txn[] = [
-      { id: `${now-500000}_a1`, type: 'BUY', symbol: 'RELIANCE', name: 'Reliance Industries', qty: 10, price: 2900, total: 29000, timestamp: now - 500000, orderType: 'Market' },
-      { id: `${now-450000}_a2`, type: 'BUY', symbol: 'INFY', name: 'Infosys', qty: 15, price: 1550, total: 23250, timestamp: now - 450000, orderType: 'Limit' },
-      { id: `${now-420000}_a3`, type: 'BUY', symbol: 'ONGC', name: 'Oil & Natural Gas Corp', qty: 50, price: 275, total: 13750, timestamp: now - 420000, orderType: 'Market' },
-      { id: `${now-300000}_a4`, type: 'SELL', symbol: 'INFY', name: 'Infosys', qty: 5, price: 1605, total: 8025, timestamp: now - 300000, orderType: 'Market' },
-      { id: `${now-200000}_a5`, type: 'BUY', symbol: 'SBIN', name: 'State Bank of India', qty: 20, price: 820, total: 16400, timestamp: now - 200000, orderType: 'Market' },
-      { id: `${now-100000}_a6`, type: 'SELL', symbol: 'RELIANCE', name: 'Reliance Industries', qty: 4, price: 2950, total: 11800, timestamp: now - 100000, orderType: 'Limit' },
-    ];
-    localStorage.setItem('transactions', JSON.stringify(demoTx.sort((a,b) => b.timestamp - a.timestamp)));
-    // also build holdings so P&L reflects
-    const holdings: Record<string, { symbol: string; name: string; qty: number; avgPrice: number }> = {};
-    for (const tx of demoTx) {
-      const cur = holdings[tx.symbol] || { symbol: tx.symbol, name: tx.name, qty: 0, avgPrice: 0 };
-      if (tx.type === 'BUY') {
-        const newQty = cur.qty + tx.qty;
-        const newCost = cur.qty * cur.avgPrice + tx.qty * tx.price;
-        holdings[tx.symbol] = { symbol: tx.symbol, name: tx.name, qty: newQty, avgPrice: newQty ? newCost / newQty : 0 };
-      } else {
-        const newQty = Math.max(0, cur.qty - tx.qty);
-        holdings[tx.symbol] = { ...cur, qty: newQty };
-      }
-    }
-    localStorage.setItem('holdings', JSON.stringify(holdings));
-    setVersion(v => v + 1);
-  };
-
-  const clearDemo = () => {
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('holdings');
-    setVersion(v => v + 1);
-  };
+  }, [txns, q, type]);
 
   const exportCSV = () => {
-    const header = ['ID','Type','Symbol','Name','Qty','Price','Total','OrderType','Timestamp'];
-    const rows = getTxns().map(t => [t.id, t.type, t.symbol, t.name, t.qty, t.price, t.total, t.orderType, new Date(t.timestamp).toISOString()]);
+    const header = ['ID','Type','Symbol','Name','Qty','Price','Total','OrderType','Strategy','Timestamp'];
+    const rows = txns.map(t => [t.id, t.type, t.symbol, t.name, t.qty, t.price, t.total, t.orderType, t.strategy, new Date(t.timestamp).toISOString()]);
     const csv = [header, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -84,8 +107,13 @@ const Transactions: React.FC = () => {
           <p className="text-slate-600 mt-1">All your buy/sell history</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={seedDemo} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Load Demo</button>
-          <button onClick={clearDemo} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700">Clear</button>
+          <button 
+            onClick={handleRefresh} 
+            disabled={loading}
+            className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-slate-300 flex items-center gap-2"
+          >
+            {loading ? 'Refreshing...' : 'Refresh Data'}
+          </button>
           <button onClick={exportCSV} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 flex items-center gap-2">
             <Download className="h-4 w-4"/> Export CSV
           </button>
@@ -121,10 +149,32 @@ const Transactions: React.FC = () => {
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Price</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Total</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Order</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Strategy</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
-            {txns.map(t => (
+            {loading && (
+              <tr>
+                <td className="px-6 py-8 text-center text-slate-500" colSpan={9}>
+                  Loading transactions...
+                </td>
+              </tr>
+            )}
+            {error && (
+              <tr>
+                <td className="px-6 py-8 text-center text-red-500" colSpan={9}>
+                  {error}
+                </td>
+              </tr>
+            )}
+            {!loading && !error && filteredTxns.length === 0 && (
+              <tr>
+                <td className="px-6 py-8 text-center text-slate-500" colSpan={9}>
+                  No transactions found
+                </td>
+              </tr>
+            )}
+            {!loading && !error && filteredTxns.map(t => (
               <tr key={t.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 text-slate-700">{new Date(t.timestamp).toLocaleString()}</td>
                 <td className="px-6 py-4">
@@ -139,16 +189,13 @@ const Transactions: React.FC = () => {
                 <td className="px-6 py-4 text-right text-slate-900">{formatINR(t.price)}</td>
                 <td className="px-6 py-4 text-right text-slate-900">{formatINR(t.total)}</td>
                 <td className="px-6 py-4 text-slate-700">{t.orderType}</td>
+                <td className="px-6 py-4 text-slate-700">{t.strategy || '-'}</td>
               </tr>
             ))}
-            {txns.length === 0 && (
-              <tr>
-                <td className="px-6 py-8 text-center text-slate-500" colSpan={8}>No transactions yet</td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
+      <Footer />
     </div>
   );
 };

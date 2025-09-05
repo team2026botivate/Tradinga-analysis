@@ -1,35 +1,62 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { addTrade, clearTrades, computeMetrics, getTrades, Trade } from '../store/trades';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { addTrade, clearTrades, computeMetrics, Trade } from '../store/trades';
+import { useTheme } from '../context/ThemeContext';
 import Select from './ui/Select';
 import FilterPanel from './FilterPanel';
 import { BarChart, Bar, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { FaDownload } from 'react-icons/fa';
+import { syncTradeToSheet, fetchTradesFromSheet } from '../lib/sheets';
 
 const Journal: React.FC = () => {
-  const [forceTick, setForceTick] = useState(0); // to re-render after adding trades
+  const [, setForceTick] = useState(0); // bump to force re-render when local store changes
+  const { theme } = useTheme();
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
     strategy: '',
     instrument: '',
-    status: 'all' as 'all' | 'win' | 'loss',
+    status: 'all' as 'all' | 'win' | 'loss' | 'breakeven',
     search: '',
+    side: 'all' as 'all' | 'Buy' | 'Sell' | 'Long' | 'Short',
   });
   const [month, setMonth] = useState<number>(new Date().getMonth()); // 0-11
   const [showFormModal, setShowFormModal] = useState(false);
   const [draftDate, setDraftDate] = useState<string | undefined>(undefined);
   const [showPnlPopup, setShowPnlPopup] = useState<{date: string, pnl: number} | null>(null);
-  const dummyData = useMemo(() => [
-    { date: '2023-08-01', value: 500 },
-    { date: '2023-08-02', value: 750 },
-    { date: '2023-08-03', value: 950 },
-    { date: '2023-08-04', value: 773 },
-    { date: '2023-08-05', value: 228 },
-    { date: '2023-08-06', value: -45 },
-    { date: '2023-08-07', value: 150 },
-  ], []);
 
-  const tradesAll = useMemo(() => getTrades(), [forceTick]);
+  const [trades, setTrades] = useState<Trade[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const pollCtrlRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const loadTrades = async () => {
+      try {
+        setLoading(true);
+        console.log('[Journal] loadTrades start');
+        const tradesData = await fetchTradesFromSheet({ signal: ctrl.signal, timeoutMs: 10000 });
+        setTrades(tradesData);
+        console.log('[Journal] loadTrades success', Array.isArray(tradesData) ? tradesData.length : 'n/a');
+        setError(null);
+      } catch (err) {
+        // Ignore aborts on unmount
+        if ((err as any)?.name === 'AbortError') return;
+        setError('Failed to load trades. Please try again later.');
+        console.error('[Journal] loadTrades error', err);
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false);
+        console.log('[Journal] loadTrades done');
+      }
+    };
+
+    loadTrades();
+    return () => ctrl.abort();
+  }, []);
+
+  // Use fetched trades across the page (instead of local store)
+  const tradesAll = trades;
 
   // Auto-refresh when trades change in this or another tab
   useEffect(() => {
@@ -54,7 +81,7 @@ const Journal: React.FC = () => {
     }
   }, [showFormModal]);
 
-  const trades = useMemo(() => {
+  const tradesList = useMemo(() => {
     return tradesAll.filter(t => {
       const d = new Date(t.date).getTime();
       if (filters.dateFrom) {
@@ -75,16 +102,17 @@ const Journal: React.FC = () => {
       }
       if (filters.status !== 'all') {
         const pnl = (t.exitPrice - t.entryPrice) * (t.side === 'Buy' || t.side === 'Long' ? 1 : -1) * t.quantity;
-        if (filters.status === 'win' && pnl < 0) return false;
+        const epsilon = 1e-6;
+        if (filters.status === 'win' && pnl <= 0) return false;
         if (filters.status === 'loss' && pnl >= 0) return false;
+        if (filters.status === 'breakeven' && Math.abs(pnl) > epsilon) return false;
       }
+      if (filters.side !== 'all' && t.side !== filters.side) return false;
       return true;
     });
   }, [tradesAll, filters]);
 
-  const m = computeMetrics(trades);
-
-  // Table removed from Journal; list moved to Trade page
+  const m = computeMetrics(tradesList);
 
   // derived lists for dropdowns
   const symbols = useMemo(() => Array.from(new Set(tradesAll.map(t => t.instrument))).sort(), [tradesAll]);
@@ -93,8 +121,12 @@ const Journal: React.FC = () => {
   // day aggregation for activity/calendar
   const dayAgg = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number }>();
-    for (const t of tradesAll) {
+    for (const t of tradesList) {
       const d = new Date(t.date);
+      // Skip rows with invalid or empty dates to avoid RangeError on toISOString
+      if (isNaN(d.getTime())) {
+        continue;
+      }
       const key = d.toISOString().slice(0,10);
       const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
       const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
@@ -102,7 +134,24 @@ const Journal: React.FC = () => {
       cur.pnl += pnl; cur.count += 1; map.set(key, cur);
     }
     return map;
-  }, [tradesAll]);
+  }, [tradesList]);
+
+  // Build chart data: daily PnL bars + cumulative equity line
+  const chartData = useMemo(() => {
+    const dates = Array.from(dayAgg.keys()).sort();
+    let running = 0;
+    return dates.map(d => {
+      const pnl = dayAgg.get(d)?.pnl ?? 0;
+      running += pnl;
+      return { date: d, pnl, equity: running };
+    });
+  }, [dayAgg]);
+
+  // Colors for charts based on theme
+  const axisTickColor = theme === 'dark' ? '#94a3b8' : '#64748b';
+  const axisLineColor = theme === 'dark' ? '#475569' : '#cbd5e1';
+  const tooltipBg = theme === 'dark' ? 'rgba(15, 23, 42, 0.9)' : '#ffffff';
+  const tooltipBorder = theme === 'dark' ? '#1e293b' : '#e2e8f0';
 
   const onAddTradingDay = () => {
     setDraftDate(new Date().toISOString().slice(0,16));
@@ -168,18 +217,19 @@ const Journal: React.FC = () => {
     symbol: string;
     strategy: string;
     year: number;
+    side: string;
   }) => {
     setFilters(s => ({
       ...s,
-      status: newFilters.status as 'all' | 'win' | 'loss',
+      status: newFilters.status as 'all' | 'win' | 'loss' | 'breakeven',
       instrument: newFilters.symbol,
       strategy: newFilters.strategy,
-      year: String(newFilters.year)
+      side: newFilters.side as 'all' | 'Buy' | 'Sell' | 'Long' | 'Short',
     }));
   };
 
   const exportCSV = () => {
-    const csvContent = trades.map(t => {
+    const csvContent = tradesList.map(t => {
       return [
         t.date,
         t.instrument,
@@ -199,12 +249,53 @@ const Journal: React.FC = () => {
     link.click();
   };
 
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    console.log('[Journal] Manual refresh start');
+    setRefreshing(true);
+    // Cancel any in-flight poll
+    if (pollCtrlRef.current) pollCtrlRef.current.abort();
+    const ctrl = new AbortController();
+    try {
+      const tradesData = await fetchTradesFromSheet({ signal: ctrl.signal, timeoutMs: 10000 });
+      console.log('[Journal] Manual refresh success', Array.isArray(tradesData) ? tradesData.length : 'n/a');
+      setTrades(tradesData);
+      setError(null);
+    } catch (e: any) {
+      if (e?.name === 'AbortError') {
+        console.log('[Journal] Manual refresh aborted');
+      } else {
+        console.error('[Journal] Manual refresh error', e);
+        setError('Failed to refresh trades.');
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Poll Google Sheets periodically for fresh trades
   useEffect(() => {
-    const interval = setInterval(() => {
-      setForceTick(v => v + 1); // Refresh data
-    }, 5000); // Update every 5 seconds
-  
-    return () => clearInterval(interval);
+    const id = window.setInterval(async () => {
+      // Ensure only one in-flight request
+      if (pollCtrlRef.current) pollCtrlRef.current.abort();
+      const ctrl = new AbortController();
+      pollCtrlRef.current = ctrl;
+      try {
+        console.log('[Journal] poll fetch start');
+        const tradesData = await fetchTradesFromSheet({ signal: ctrl.signal, timeoutMs: 10000 });
+        setTrades(tradesData);
+        console.log('[Journal] poll success', Array.isArray(tradesData) ? tradesData.length : 'n/a');
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('Auto-refresh trades failed', err);
+          console.warn('[Journal] poll error', err);
+        }
+      }
+    }, 15000); // 15s polling
+    return () => {
+      if (id) window.clearInterval(id);
+      if (pollCtrlRef.current) pollCtrlRef.current.abort();
+    };
   }, []);
 
   return (
@@ -255,45 +346,45 @@ const Journal: React.FC = () => {
         </div>
         <Card title="Trading Activity" className="border border-slate-300 hover:border-slate-300 dark:hover:border-slate-700"><ActivityHeatmap year={new Date().getFullYear()} dayAgg={dayAgg} /></Card>
         <Card title="Equity Curve">
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 shadow-2xl border border-slate-700">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
               <div>
-                <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                   Performance Chart
                 </h2>
                 <div className="flex gap-4 mt-2">
                   <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                    <span className="text-sm text-slate-300">Total: ₹{m.totalPnL.toFixed(2)}</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Total: ₹{m.totalPnL.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-400"></span>
-                    <span className="text-sm text-slate-300">Loss: ₹{Math.abs(m.totalPnL * 0.05).toFixed(2)}</span>
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                    <span className="text-sm text-slate-600 dark:text-slate-300">Loss: ₹{Math.abs(m.totalPnL * 0.05).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
-              <span className="mt-2 md:mt-0 px-3 py-1 rounded-full bg-slate-700 text-slate-200 text-sm">
-                {trades.length} trades
+              <span className="mt-2 md:mt-0 px-3 py-1 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200 text-sm">
+                {tradesList.length} trades
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
-                <div className="text-slate-400 text-sm mb-1">Win Rate</div>
-                <div className="text-3xl font-bold text-emerald-400">{m.winRate.toFixed(1)}%</div>
-                <div className="text-xs text-slate-500 mt-1">{m.wins}W / {m.losses}L</div>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 backdrop-blur-sm">
+                <div className="text-slate-600 dark:text-slate-400 text-sm mb-1">Win Rate</div>
+                <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{m.winRate.toFixed(1)}%</div>
+                <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">{m.wins}W / {m.losses}L</div>
               </div>
-              <div className="p-4 rounded-xl bg-slate-800/50 border border-slate-700 backdrop-blur-sm">
-                <div className="text-slate-400 text-sm mb-1">Max Drawdown</div>
-                <div className="text-3xl font-bold text-red-400">₹{m.worst?.pnl.toFixed(2) || '0'}</div>
-                <div className="text-xs text-slate-500 mt-1">Worst trade</div>
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 backdrop-blur-sm">
+                <div className="text-slate-600 dark:text-slate-400 text-sm mb-1">Max Drawdown</div>
+                <div className="text-3xl font-bold text-red-600 dark:text-red-400">₹{m.worst?.pnl.toFixed(2) || '0'}</div>
+                <div className="text-xs text-slate-500 dark:text-slate-500 mt-1">Worst trade</div>
               </div>
             </div>
 
             <div className="h-80 w-full">
               <ResponsiveContainer>
                 <BarChart 
-                  data={dummyData}
+                  data={chartData}
                   margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
                 >
                   <defs>
@@ -304,37 +395,37 @@ const Journal: React.FC = () => {
                   </defs>
                   <XAxis 
                     dataKey="date" 
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    tickLine={{ stroke: '#475569' }}
-                    axisLine={{ stroke: '#475569' }}
+                    tick={{ fill: axisTickColor, fontSize: 12 }}
+                    tickLine={{ stroke: axisLineColor }}
+                    axisLine={{ stroke: axisLineColor }}
                     tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}
                   />
                   <YAxis 
-                    tick={{ fill: '#94a3b8', fontSize: 12 }}
-                    tickLine={{ stroke: '#475569' }}
-                    axisLine={{ stroke: '#475569' }}
+                    tick={{ fill: axisTickColor, fontSize: 12 }}
+                    tickLine={{ stroke: axisLineColor }}
+                    axisLine={{ stroke: axisLineColor }}
                     tickFormatter={(value) => `₹${value >= 1000 ? `${(value/1000).toFixed(1)}k` : value}`}
                   />
                   <Tooltip
                     contentStyle={{ 
-                      background: 'rgba(15, 23, 42, 0.9)',
-                      border: '1px solid #1e293b',
+                      background: tooltipBg,
+                      border: `1px solid ${tooltipBorder}`,
                       borderRadius: '8px',
                       backdropFilter: 'blur(4px)',
                       boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                     }}
-                    formatter={(value) => [`₹${value}`, 'Amount']}
+                    formatter={(value, name) => [`₹${Number(value).toFixed(2)}`, name === 'pnl' ? 'Daily P&L' : 'Equity']}
                     labelFormatter={(label) => new Date(label).toLocaleDateString()}
                   />
                   <Bar 
-                    dataKey="value" 
+                    dataKey="pnl" 
                     fill="url(#colorBar)" 
                     radius={[4, 4, 0, 0]}
                     animationDuration={800}
                   />
                   <Line 
                     type="monotone" 
-                    dataKey="value" 
+                    dataKey="equity" 
                     stroke="#f97316" 
                     strokeWidth={2}
                     dot={false}
@@ -347,110 +438,174 @@ const Journal: React.FC = () => {
             <div className="flex justify-center gap-8 mt-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-gradient-to-br from-emerald-400 to-green-600"></span>
-                <span className="text-slate-300">Cumulative P&L</span>
+                <span className="text-slate-600 dark:text-slate-300">Cumulative P&L</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-orange-400"></span>
-                <span className="text-slate-300">Net After Brokerage</span>
+                <span className="text-slate-600 dark:text-slate-300">Net After Brokerage</span>
               </div>
             </div>
           </div>
         </Card>
       </section>
 
-      {/* Inline log form removed; using modal only */}
+    {/* Inline log form removed; using modal only */}
 
-      {/* Trade Form Modal */}
-      {showFormModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-2 sm:p-4 md:p-8 overscroll-none">
-          <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
-          <div className="relative w-full max-w-full sm:max-w-3xl mx-0 my-2 sm:my-6 md:my-10">
-            <div className="bg-white dark:bg-slate-900 rounded-lg sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-h-[95vh] sm:max-h-[95vh] overflow-auto no-scrollbar">
-              <div className="sticky top-0 z-10 flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 bg-white/90 dark:bg-slate-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60">
-                <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trade</h3>
-                <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">✕</button>
-              </div>
-              <div className="p-3 sm:p-4">
-                <TradeForm
-                  initialDate={draftDate}
-                  onSaved={() => {
-                    setForceTick(v => v + 1);
-                    setShowFormModal(false);
-                  }}
-                />
-              </div>
+    {/* Trade Form Modal */}
+    {showFormModal && (
+      <div className="fixed inset-0 z-50 overflow-hidden">
+        {/* Backdrop overlay */}
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowFormModal(false)} />
+        
+        {/* Modal container */}
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden">
+            <TradeForm
+              initialDate={draftDate}
+              onSaved={async () => {
+                setShowFormModal(false);
+                const ctrl = new AbortController();
+                try {
+                  console.log('[Journal] refresh after save start');
+                  const tradesData = await fetchTradesFromSheet({ signal: ctrl.signal, timeoutMs: 10000 });
+                  setTrades(tradesData);
+                  console.log('[Journal] refresh after save success', Array.isArray(tradesData) ? tradesData.length : 'n/a');
+                } catch (e: any) {
+                  if (e?.name === 'AbortError') {
+                    console.log('[Journal] refresh after save aborted');
+                  } else {
+                    console.warn('Refresh after save failed', e);
+                  }
+                }
+              }}
+              onCancel={() => {
+                setForceTick(v => v + 1);
+                setShowFormModal(false);
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* P&L Popup Card */}
+    {showPnlPopup && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-4 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
+          <div className="text-center">
+            <div className="text-sm text-slate-600 mb-1">{new Date(showPnlPopup.date).toLocaleDateString()}</div>
+            <div className={`text-lg font-semibold ${
+              showPnlPopup.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+            }`}>
+              {showPnlPopup.pnl >= 0 ? '+' : ''}{showPnlPopup.pnl.toFixed(2)}
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
-      {/* P&L Popup Card */}
-      {showPnlPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl p-4 pointer-events-auto animate-in fade-in zoom-in-95 duration-200">
-            <div className="text-center">
-              <div className="text-sm text-slate-600 mb-1">{new Date(showPnlPopup.date).toLocaleDateString()}</div>
-              <div className={`text-lg font-semibold ${
-                showPnlPopup.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-              }`}>
-                {showPnlPopup.pnl >= 0 ? '+' : ''}{showPnlPopup.pnl.toFixed(2)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* All trades table */}
+      {/* We remove the existing trade list that uses the store trades and replace it with the above fetched trades table */}
       <section className="space-y-3">
         <h3 className="text-xl font-semibold">Trade List</h3>
-        <div className="bg-slate-900 rounded-2xl p-5 shadow-xl border border-slate-800">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-xl border border-slate-200 dark:border-slate-800">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-slate-200">Trade List</h3>
-              <p className="text-slate-400 text-sm">{trades.length} trades</p>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-200">Trade List</h3>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">{tradesList.length} trades</p>
             </div>
-            <button 
-              onClick={exportCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition-colors"
-            >
-              <FaDownload className="text-slate-300" /> 
-              <span className="text-slate-200">Export CSV</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={loading || refreshing}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-300 dark:border-slate-700 transition-colors disabled:opacity-50"
+              >
+                {refreshing ? 'Refreshing…' : 'Refresh'}
+              </button>
+              <button 
+                onClick={exportCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-lg border border-slate-300 dark:border-slate-700 transition-colors"
+              >
+                <FaDownload className="text-slate-600 dark:text-slate-300" /> 
+                <span className="text-slate-900 dark:text-slate-200">Export CSV</span>
+              </button>
+            </div>
           </div>
           
           <div className="overflow-auto no-scrollbar max-h-[70vh]">
-            <table className="min-w-full text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-800/80 backdrop-blur-sm">
-                <tr className="text-left border-b border-slate-700">
-                  {['Date','Instrument','Side','Entry','Exit','Qty','P&L','Strategy','Notes'].map((label) => (
-                    <th key={label} className="py-3 px-4 text-slate-300 font-medium">
-                      <span>{label}</span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trades.map(t => {
-                  const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
-                  const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-                  return (
-                    <tr key={t.id} className="border-b border-slate-700 hover:bg-slate-800/50 transition-colors">
-                      <td className="py-3 px-4 whitespace-nowrap text-slate-200">{new Date(t.date).toLocaleString()}</td>
-                      <td className="py-3 px-4 text-slate-200">{t.instrument}</td>
-                      <td className={`py-3 px-4 ${t.side === 'Buy' ? 'text-emerald-400' : 'text-red-400'}`}>{t.side}</td>
-                      <td className="py-3 px-4 text-slate-200">{t.entryPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-slate-200">{t.exitPrice.toFixed(2)}</td>
-                      <td className="py-3 px-4 text-slate-200">{t.quantity}</td>
-                      <td className={`py-3 px-4 font-medium ${pnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}
-                      </td>
-                      <td className="py-3 px-4 text-slate-400">{t.strategy || '-'}</td>
-                      <td className="py-3 px-4 text-slate-400">{t.notes || '-'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {loading ? (
+              <div className="flex justify-center items-center py-10">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-10 text-red-500">
+                {error}
+              </div>
+            ) : tradesList.length === 0 ? (
+              <div className="text-center py-10 text-slate-500 dark:text-slate-400">
+                No trades found for current filters.
+              </div>
+            ) : (
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-white/90 dark:bg-slate-800/80 backdrop-blur-sm">
+                  <tr className="text-left border-b border-slate-200 dark:border-slate-700">
+                    {[
+                      'Sl no',
+                      'Timestamp',
+                      'Entry date',
+                      'Exit date',
+                      'Instrument',
+                      'Side',
+                      'Entry',
+                      'Exit',
+                      'Qty',
+                      'P&L',
+                      'Strategy',
+                      'Trading Result',
+                      'Stoploss',
+                      'takeprofit',
+                      'Risk in rs',
+                      'Risk in %',
+                      'notes',
+                    ].map((label) => (
+                      <th key={label} className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                        <span>{label}</span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tradesList.map((t, idx) => {
+                    const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+                    const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
+                    const epsilon = 1e-6;
+                    const result = Math.abs(pnl) <= epsilon ? 'Breakeven' : (pnl > 0 ? 'Win' : 'Loss');
+                    const sideColor = (t.side === 'Buy' || t.side === 'Long') ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400';
+                    const resultColor = result === 'Win' ? 'text-emerald-600 dark:text-emerald-400' : (result === 'Loss' ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300');
+                    return (
+                      <tr key={t.id} className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{idx + 1}</td>
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-900 dark:text-slate-200">{new Date(t.date).toLocaleTimeString()}</td>
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-900 dark:text-slate-200">{new Date(t.date).toLocaleDateString()}</td>
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-900 dark:text-slate-200">{t.exitDate ? new Date(t.exitDate).toLocaleDateString() : '-'}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.instrument}</td>
+                        <td className={`py-3 px-4 ${sideColor}`}>{t.side}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.entryPrice.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.exitPrice.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.quantity}</td>
+                        <td className={`py-3 px-4 font-medium ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>{pnl >= 0 ? '+' : ''}{pnl.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{t.strategy || '-'}</td>
+                        <td className={`py-3 px-4 font-medium ${resultColor}`}>{result}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.stopLoss != null ? t.stopLoss.toFixed(2) : '-'}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.takeProfit != null ? t.takeProfit.toFixed(2) : '-'}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.riskAmount != null ? t.riskAmount.toFixed(2) : '-'}</td>
+                        <td className="py-3 px-4 text-slate-900 dark:text-slate-200">{t.riskPercent != null ? `${t.riskPercent.toFixed(2)}%` : '-'}</td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{t.notes || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </section>
@@ -464,7 +619,7 @@ const Journal: React.FC = () => {
             <div className="text-2xl font-semibold">{m.wins} / {m.losses}</div>
           </Card>
           <Card title="Strategy Success">
-            <StrategySuccess trades={trades} />
+            <StrategySuccess trades={tradesList} />
           </Card>
           <Card title="Max Drawdown"><MaxDrawdown equity={m.equity} /></Card>
         </div>
@@ -483,10 +638,7 @@ const Journal: React.FC = () => {
       </section>
 
       {/* Notes */}
-      <section className="space-y-3">
-        <h3 className="text-xl font-semibold">Notes & Strategy Tracking</h3>
-        <p className="text-slate-600 text-sm">Add notes per-trade in the form; they will appear in the table for review.</p>
-      </section>
+     
     </div>
   );
 };
@@ -507,7 +659,7 @@ const Card: React.FC<{ title: string; children: React.ReactNode; className?: str
 
 const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPnl?: number; onCancel?: () => void }> = ({ onSaved, initialDate, initialPnl, onCancel }) => {
   const [form, setForm] = useState<Partial<Trade>>({
-    date: (initialDate ?? new Date().toISOString().slice(0,16)),
+    date: (initialDate ?? new Date().toISOString().slice(0,10)),
     instrument: '', side: 'Buy', entryPrice: 0, exitPrice: 0, quantity: 1,
     stopLoss: undefined, takeProfit: undefined, riskAmount: undefined, riskPercent: undefined,
     strategy: '', entryReason: '', exitReason: '', notes: '', tags: [],
@@ -565,6 +717,8 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       notes: form.notes || '',
     };
     addTrade(trade);
+    // Fire-and-forget sync to Google Sheets (Apps Script)
+    void syncTradeToSheet(trade);
     onSaved();
   };
 
@@ -595,59 +749,64 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
   const canSave = Boolean(form.date && form.instrument);
 
   return (
-    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 surface-card p-4 hover:bg-slate-50 dark:hover:bg-slate-800 hover:shadow-sm transition-colors">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <Input label="Date & Time" type="datetime-local" value={form.date || ''} onChange={v => set('date', v)} />
-        <Input label="Exit Date" type="datetime-local" value={form.exitDate || ''} onChange={v => set('exitDate', v)} />
+    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 p-4 max-h-[80vh] overflow-y-auto no-scrollbar">
+      {/* Date inputs - mobile optimized */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Input label="Date" type="date" value={form.date || ''} onChange={v => set('date', v)} placeholder="dd-MM-yyyy"/>
+        <Input label="Exit Date" type="date" value={form.exitDate || ''} onChange={v => set('exitDate', v)} placeholder="dd-MM-yyyy"/>
       </div>
 
-      
-      <div className="h-px bg-slate-200" />
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
 
-      {/* Compact row: Instrument ▲ Side ▲ Entry ▲ Exit ▲ Qty ▲ P&L */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end">
-        <label className="text-sm sm:col-span-2 md:col-span-2">
-          <span className="block mb-1 text-slate-600">Instrument</span>
-          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input" />
+      {/* Trade details - stacked on mobile, grid on desktop */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Instrument</span>
+          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input w-full" />
         </label>
-        <div className="sm:col-span-1 md:col-span-1">
+        <div className="col-span-1">
           <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
         </div>
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Entry</span>
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Entry Price</span>
           <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-6" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-8 w-full" />
           </div>
         </label>
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Exit</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Exit Price</span>
           <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-6" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-8 w-full" />
           </div>
         </label>
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Qty</span>
-          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input" />
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Quantity</span>
+          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input w-full" />
         </label>
-        <div className="text-sm sm:col-span-2 md:col-span-1">
-          <div className="block mb-1 text-slate-600">P&L</div>
-          <div className={`px-3 py-2 rounded-xl border text-center font-medium ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
-            {pnl>=0 ? '+' : ''}{pnl.toFixed(2)}
+        <div className="text-sm col-span-1">
+          <div className="block mb-1 text-slate-600 dark:text-slate-400">P&L</div>
+          <div className={`px-3 py-2.5 rounded-lg border text-center font-semibold ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
+            {pnl>=0 ? '+' : ''}₹{Math.abs(pnl).toFixed(2)}
           </div>
         </div>
       </div>
 
-      {/* Strategy ▲ Tags ▲ Notes */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <label className="text-sm sm:col-span-2 md:col-span-2">
-          <span className="block mb-1 text-slate-600">Strategy</span>
-          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="input" />
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+
+      {/* Strategy & Tags */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Strategy</span>
+          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="input w-full" placeholder="Enter strategy" />
         </label>
-        <label className="text-sm sm:col-span-2 md:col-span-2">
-          <span className="block mb-1 text-slate-600">Tags</span>
-          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="input" placeholder="comma separated (press Enter to add)" onKeyDown={e => {
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Tags</span>
+          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="input w-full" placeholder="comma separated" onKeyDown={e => {
             if (e.key === 'Enter') {
               e.preventDefault();
               const cur = (form.tags || []);
@@ -670,32 +829,28 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       </div>
 
       {/* Quick pick strategy chips */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 px-1">
         {strategiesPreset.map(str => (
           <button
             type="button"
             key={str}
             onClick={() => set('strategy', str)}
-            className={`px-3 py-1 rounded-full border text-sm ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`px-3 py-1.5 rounded-full border text-xs sm:text-sm transition-all ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
           >
             {str}
           </button>
         ))}
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        <input
-          placeholder="Add custom strategy..."
-          value={form.strategy || ''}
-          onChange={e => set('strategy', e.target.value)}
-          className="input flex-1"
-        />
-        <button type="button" onClick={() => set('strategy', (form.strategy||'').trim())} className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700">Add</button>
+      <div className="hidden">
+        {/* Removed custom strategy input to simplify mobile UI */}
       </div>
 
-      {/* Trading Result segmented */}
-      <div className="space-y-2">
-        <div className="text-sm font-semibold text-slate-800">Trading Result</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+
+      {/* Trading Result */}
+      <div className="space-y-3">
+        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Trading Result</div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {["profit","loss","open","breakeven"].map(mode => {
             const active = (mode==="profit" && pnl>0) || (mode==="loss" && pnl<0);
             let cls = "";
@@ -730,7 +885,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
                 type="button"
                 key={mode}
                 onClick={onClick}
-                className={`px-4 py-2 rounded-xl border font-medium focus:outline-none focus:ring-2 focus:ring-offset-1 ${cls}`}
+                className={`px-3 py-2.5 rounded-lg border font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 ${cls}`}
               >
                 {label}
               </button>
@@ -740,28 +895,28 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       </div>
 
       {/* Risk management */}
-      <div className="h-px bg-slate-200" />
-      <div className="text-sm font-semibold text-slate-800">Risk Management</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Stop-Loss</span>
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+      <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Risk Management</div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Stop-Loss</span>
           <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input pl-6" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input pl-8 w-full" />
           </div>
         </label>
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Take-Profit</span>
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Take-Profit</span>
           <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input pl-6" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input pl-8 w-full" />
           </div>
         </label>
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Risk (₹)</span>
+        <label className="text-sm col-span-1">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Risk (₹)</span>
           <div className="relative">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input pl-6" />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
+            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input pl-8 w-full" />
           </div>
         </label>
         <Input label="Risk (%)" type="number" value={String(form.riskPercent ?? '')} onChange={v => set('riskPercent', v)} />
@@ -771,36 +926,40 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       <RRMetrics entry={Number(form.entryPrice)||0} sl={form.stopLoss==null?undefined:Number(form.stopLoss)} tp={form.takeProfit==null?undefined:Number(form.takeProfit)} side={String(form.side||'Buy') as any} qty={Number(form.quantity)||0} />
 
       {/* Notes */}
-      <div className="h-px bg-slate-200" />
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
    
       <div className="grid grid-cols-1 gap-3">
         <label className="text-sm">
-          <span className="block mb-1 text-slate-600">Notes</span>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input" rows={4} placeholder="Add any observations, emotions, mistakes, improvements, or learnings..." />
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Notes</span>
+          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input w-full" rows={3} placeholder="Add observations, emotions, learnings..." />
         </label>
       </div>
 
       {/* Attachments */}
-      <div className="h-px bg-slate-200" />
-      <div className="text-sm font-semibold text-slate-800">Attachments</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        <label className="text-sm sm:col-span-2">
-          <span className="block mb-1 text-slate-600">Screenshot (name only)</span>
-          <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full" />
-          {fileName && <div className="text-xs text-slate-500 mt-1">Selected: {fileName}</div>}
+      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+      <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Attachments</div>
+      <div className="grid grid-cols-1 gap-3">
+        <label className="text-sm">
+          <span className="block mb-1 text-slate-600 dark:text-slate-400">Screenshot (optional)</span>
+          <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300" />
+          {fileName && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Selected: {fileName}</div>}
         </label>
-        <div className="sm:col-span-2 md:col-span-2 flex flex-col sm:flex-row justify-end items-end gap-2 sticky bottom-0 bg-white/85 dark:bg-slate-900/85 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/60 p-2 rounded-lg border border-slate-200 dark:border-slate-800">
-          {onCancel && (
-            <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
-          )}
-          <button
-            type="submit"
-            disabled={!canSave || saving}
-            className={`px-4 py-2 rounded-lg text-white bg-gradient-to-r from-indigo-600 to-blue-600 shadow-sm hover:from-indigo-500 hover:to-blue-500 disabled:opacity-60 disabled:cursor-not-allowed`}
-          >
-            {saving ? 'Saving…' : 'Save Trade'}
+      </div>
+
+      {/* Action buttons - sticky at bottom on mobile */}
+      <div className="flex flex-col sm:flex-row gap-2 pt-4 sticky bottom-0 bg-white dark:bg-slate-900 -mx-4 px-4 pb-4 border-t border-slate-200 dark:border-slate-700 mt-4">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="flex-1 sm:flex-none px-6 py-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium">
+            Cancel
           </button>
-        </div>
+        )}
+        <button
+          type="submit"
+          disabled={!canSave || saving}
+          className="flex-1 sm:flex-none px-6 py-3 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm"
+        >
+          {saving ? 'Saving…' : 'Save Trade'}
+        </button>
       </div>
     </form>
   );
@@ -819,7 +978,7 @@ const RRMetrics: React.FC<{ entry: number; sl?: number; tp?: number; side: Trade
 
   const chip = (label: string, val: string | number, tone: 'neutral'|'pos'|'neg'='neutral') => (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs border ${
-      tone==='pos' ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : tone==='neg' ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+      tone==='pos' ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : tone==='neg' ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-700 dark:text-red-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
     }`}>
       {label}: {val}
     </span>
@@ -927,7 +1086,7 @@ const WeekdayBreakup: React.FC<{ dayAgg: Map<string,{pnl:number;count:number}> }
   return (
     <div className="p-4 sm:p-6 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start mb-4 sm:mb-6 gap-3">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-slate-100">Weekday Performance</h3>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Performance breakdown by day of week</p>
@@ -1061,9 +1220,9 @@ function monthName(m: number) {
 const Input: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }>
   = ({ label, value, onChange, type = 'text' }) => (
   <label className="text-sm">
-    <span className="block mb-1 text-slate-600">{label}</span>
+    <span className="block mb-1 text-slate-600 dark:text-slate-400">{label}</span>
     <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      className="input" />
+      className="input w-full" />
   </label>
 );
 

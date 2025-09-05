@@ -11,10 +11,11 @@ interface FilterPanelProps {
     symbol: string;
     strategy: string;
     year: number;
+    side: string;
   }) => void;
-  onLoadDemo: () => void;
-  onClearData: () => void;
   onAddTrade: () => void;
+  onLoadDemo?: () => void;
+  onClearData?: () => void;
 }
 
 const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -23,9 +24,9 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
   onSearch,
   onDateChange,
   onFilterChange,
+  onAddTrade,
   onLoadDemo,
-  onClearData,
-  onAddTrade
+  onClearData
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -34,11 +35,12 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
     status: 'all',
     symbol: '',
     strategy: '',
-    year: 2025
+    year: 2025,
+    side: 'all'
   });
 
   return (
-    <div className="bg-slate-800 rounded-xl p-4 shadow-lg transition-all duration-300">
+    <div className="surface-card rounded-xl p-4 shadow-sm transition-all duration-300">
       {/* Search Bar */}
       <div className="relative mb-4">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -46,7 +48,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         </div>
         <input
           type="text"
-          className="block w-full pl-10 pr-3 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+          className="block w-full pl-10 pr-3 py-2 rounded-lg input placeholder-slate-400 focus-ring transition-all duration-200"
           placeholder="e.g., RELIANCE breakout ..."
           value={searchQuery}
           onChange={(e) => {
@@ -64,7 +66,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
           <input
             type="date"
-            className="block w-full pl-3 pr-10 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="block w-full pl-3 pr-10 py-2 rounded-lg input placeholder-slate-400 focus-ring"
             placeholder="dd-mm-yyyy"
             value={dateFrom}
             onChange={(e) => {
@@ -79,7 +81,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           </div>
           <input
             type="date"
-            className="block w-full pl-3 pr-10 py-2 rounded-lg bg-slate-700 border border-slate-600 text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="block w-full pl-3 pr-10 py-2 rounded-lg input placeholder-slate-400 focus-ring"
             placeholder="dd-mm-yyyy"
             value={dateTo}
             onChange={(e) => {
@@ -91,9 +93,9 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
       </div>
 
       {/* Filter Dropdowns */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
         <select
-          className="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           value={filters.status}
           onChange={(e) => {
             const newFilters = { ...filters, status: e.target.value };
@@ -108,7 +110,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         </select>
 
         <select
-          className="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           value={filters.symbol}
           onChange={(e) => {
             const newFilters = { ...filters, symbol: e.target.value };
@@ -123,7 +125,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         </select>
 
         <select
-          className="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           value={filters.strategy}
           onChange={(e) => {
             const newFilters = { ...filters, strategy: e.target.value };
@@ -137,9 +139,25 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
           ))}
         </select>
 
+        <select
+          className="input overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          value={filters.side}
+          onChange={(e) => {
+            const newFilters = { ...filters, side: e.target.value };
+            setFilters(newFilters);
+            onFilterChange(newFilters);
+          }}
+        >
+          <option value="all">All Sides</option>
+          <option value="Buy">Buy</option>
+          <option value="Sell">Sell</option>
+          <option value="Long">Long</option>
+          <option value="Short">Short</option>
+        </select>
+
         <input
           type="number"
-          className="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="input"
           value={filters.year}
           onChange={(e) => {
             const newFilters = { ...filters, year: parseInt(e.target.value) || 2025 };
@@ -152,23 +170,12 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
       {/* Action Buttons */}
       <div className="flex flex-col md:flex-row gap-3">
         <button
-          onClick={onLoadDemo}
-          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
-        >
-          Load Demo Data
-        </button>
-        <button
-          onClick={onClearData}
-          className="flex-1 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white py-2 px-4 rounded-lg shadow-sm hover:shadow-md transition-all duration-300"
-        >
-          Clear Data
-        </button>
-        <button
           onClick={onAddTrade}
-          className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-all duration-300"
+          className="flex-1 btn-secondary flex items-center justify-center gap-2"
         >
           <FiPlus /> Add Trading Day
         </button>
+       
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CalendarRange, Download, PieChart } from 'lucide-react';
+import { fetchTradesFromSheet } from '../lib/sheets';
+import type { Trade } from '../store/trades';
+import Footer from './Footer';
 
 // Keep this in sync with Trade demoPrices
 const demoPrices: Record<string, number> = {
@@ -20,19 +23,11 @@ type Txn = {
   name: string;
   qty: number;
   price: number;
-  total: number;
-  timestamp: number;
-  orderType: 'Market' | 'Limit' | 'Stop';
+  date: number;
+  notes: string;
 };
 
 type HoldingsItem = { symbol: string; name: string; qty: number; avgPrice: number };
-
-const getTxns = (): Txn[] => {
-  try { return JSON.parse(localStorage.getItem('transactions') || '[]'); } catch { return []; }
-};
-const getHoldings = (): Record<string, HoldingsItem> => {
-  try { return JSON.parse(localStorage.getItem('holdings') || '{}'); } catch { return {}; }
-};
 
 const formatINR = (n: number) => `₹${n.toFixed(2)}`;
 
@@ -64,49 +59,51 @@ const withinRange = (ts: number, range: Range) => {
 
 const ProfitLoss: React.FC = () => {
   const [range, setRange] = useState<Range>('Month');
-  const [version, setVersion] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [txns, setTxns] = useState<Txn[]>([]);
+  const [holdings, setHoldings] = useState<Record<string, HoldingsItem>>({});
 
-  const txns = useMemo(() => getTxns(), [version]);
-  const holdings = useMemo(() => getHoldings(), [version]);
+  const tradeToTxn = (trade: Trade): Txn => ({
+    id: trade.id,
+    type: trade.side === 'Buy' || trade.side === 'Long' ? 'BUY' : 'SELL',
+    symbol: trade.instrument,
+    name: trade.instrument,
+    qty: trade.quantity,
+    price: trade.entryPrice,
+    date: new Date(trade.date).getTime(),
+    notes: trade.notes || ''
+  });
 
-  const seedDemo = () => {
-    const now = Date.now();
-    const demoTx = [
-      { id: `${now-500000}_a1`, type: 'BUY' as const, symbol: 'RELIANCE', name: 'Reliance Industries', qty: 10, price: 2900, total: 29000, timestamp: now - 500000, orderType: 'Market' as const },
-      { id: `${now-450000}_a2`, type: 'BUY' as const, symbol: 'INFY', name: 'Infosys', qty: 15, price: 1550, total: 23250, timestamp: now - 450000, orderType: 'Limit' as const },
-      { id: `${now-420000}_a3`, type: 'BUY' as const, symbol: 'ONGC', name: 'Oil & Natural Gas Corp', qty: 50, price: 275, total: 13750, timestamp: now - 420000, orderType: 'Market' as const },
-      { id: `${now-300000}_a4`, type: 'SELL' as const, symbol: 'INFY', name: 'Infosys', qty: 5, price: 1605, total: 8025, timestamp: now - 300000, orderType: 'Market' as const },
-      { id: `${now-200000}_a5`, type: 'BUY' as const, symbol: 'SBIN', name: 'State Bank of India', qty: 20, price: 820, total: 16400, timestamp: now - 200000, orderType: 'Market' as const },
-      { id: `${now-100000}_a6`, type: 'SELL' as const, symbol: 'RELIANCE', name: 'Reliance Industries', qty: 4, price: 2950, total: 11800, timestamp: now - 100000, orderType: 'Limit' as const },
-    ];
-    localStorage.setItem('transactions', JSON.stringify(demoTx.sort((a,b) => b.timestamp - a.timestamp)));
-    const hold: Record<string, HoldingsItem> = {};
-    for (const tx of demoTx) {
-      const cur = hold[tx.symbol] || { symbol: tx.symbol, name: tx.name, qty: 0, avgPrice: 0 };
-      if (tx.type === 'BUY') {
-        const newQty = cur.qty + tx.qty;
-        const newCost = cur.qty * cur.avgPrice + tx.qty * tx.price;
-        hold[tx.symbol] = { symbol: tx.symbol, name: tx.name, qty: newQty, avgPrice: newQty ? newCost / newQty : 0 };
-      } else {
-        const newQty = Math.max(0, cur.qty - tx.qty);
-        hold[tx.symbol] = { ...cur, qty: newQty };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const trades = await fetchTradesFromSheet();
+        setTxns(trades.map(tradeToTxn));
+      } catch (err) {
+        setError('Failed to fetch data: ' + (err instanceof Error ? err.message : String(err)));
+      } finally {
+        setLoading(false);
       }
-    }
-    localStorage.setItem('holdings', JSON.stringify(hold));
-    setVersion(v => v + 1);
-  };
+    };
+    fetchData();
+  }, []);
 
-  const clearDemo = () => {
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('holdings');
-    setVersion(v => v + 1);
-  };
-
-  // Realized P&L: sum over SELL transactions (sell_total - proportional cost basis)
-  // For simplicity, estimate cost basis using avgPrice at the time of sale from holdings snapshot is not stored.
-  // We'll approximate by using current avgPrice in holdings plus historical buys proportionally.
-  // Simpler approach: realized = sum( (sell price - average buy price up to that point) * qty ).
-  // For demo purposes, we compute realized across all SELLs using current avgPrice fallback.
+  useEffect(() => {
+    const hold: Record<string, HoldingsItem> = {};
+    txns.forEach(t => {
+      const cur = hold[t.symbol] || { symbol: t.symbol, name: t.name, qty: 0, avgPrice: 0 };
+      if (t.type === 'BUY') {
+        const newQty = cur.qty + t.qty;
+        const newCost = cur.qty * cur.avgPrice + t.qty * t.price;
+        hold[t.symbol] = { ...cur, qty: newQty, avgPrice: newQty ? newCost / newQty : 0 };
+      } else {
+        const newQty = Math.max(0, cur.qty - t.qty);
+        hold[t.symbol] = { ...cur, qty: newQty };
+      }
+    });
+    setHoldings(hold);
+  }, [txns]);
 
   const { realized, perStockRealized } = useMemo(() => {
     const per: Record<string, number> = {};
@@ -153,11 +150,11 @@ const ProfitLoss: React.FC = () => {
     return { unrealized: total, perStockUnrealized: per };
   }, [holdings]);
 
-  const filteredTxns = useMemo(() => txns.filter(t => withinRange(t.timestamp, range)), [txns, range]);
+  const filteredTxns = useMemo(() => txns.filter(t => withinRange(t.date, range)), [txns, range]);
 
   const exportCSV = () => {
-    const header = ['Symbol','Type','Qty','Price','Total','Timestamp'];
-    const rows = filteredTxns.map(t => [t.symbol, t.type, t.qty, t.price, t.total, new Date(t.timestamp).toISOString()]);
+    const header = ['Symbol','Type','Qty','Price','Date','Notes'];
+    const rows = filteredTxns.map(t => [t.symbol, t.type, t.qty, t.price, new Date(t.date).toISOString(), t.notes]);
     const csv = [header, ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -165,6 +162,14 @@ const ProfitLoss: React.FC = () => {
     a.href = url; a.download = 'pnl_range_txns.csv'; a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -174,8 +179,6 @@ const ProfitLoss: React.FC = () => {
           <p className="text-slate-600 mt-1">View realized and unrealized P&L</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={seedDemo} className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">Load Demo</button>
-          <button onClick={clearDemo} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700">Clear</button>
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-100 text-slate-700">
             <CalendarRange className="h-4 w-4"/>
             <select value={range} onChange={(e) => setRange(e.target.value as Range)} className="bg-transparent outline-none text-slate-800">
@@ -211,8 +214,8 @@ const ProfitLoss: React.FC = () => {
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Stock</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Realized</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Unrealized</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Realized (₹)</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Unrealized (₹)</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -231,6 +234,43 @@ const ProfitLoss: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-200 text-slate-700 font-semibold">Holdings</div>
+        <table className="min-w-full divide-y divide-slate-200">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Symbol</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Qty</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Avg Price (₹)</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Current (₹)</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">P&L (₹)</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-slate-200">
+            {Object.values(holdings).map(h => {
+              const pnl = (demoPrices[h.symbol] || 0 - h.avgPrice) * h.qty;
+              return (
+                <tr key={h.symbol} className="hover:bg-slate-50">
+                  <td className="px-6 py-4 font-semibold text-slate-900">{h.symbol}</td>
+                  <td className="px-6 py-4">{h.name}</td>
+                  <td className="px-6 py-4 text-right">{h.qty}</td>
+                  <td className="px-6 py-4 text-right">{formatINR(h.avgPrice)}</td>
+                  <td className="px-6 py-4 text-right">{formatINR(demoPrices[h.symbol] || 0)}</td>
+                  <td className={`px-6 py-4 text-right ${pnl >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>{formatINR(pnl)}</td>
+                </tr>
+              );
+            })}
+            {Object.keys(holdings).length === 0 && (
+              <tr>
+                <td className="px-6 py-8 text-center text-slate-500" colSpan={6}>No holdings yet</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <Footer />
     </div>
   );
 };

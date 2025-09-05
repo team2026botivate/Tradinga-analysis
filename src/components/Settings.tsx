@@ -1,7 +1,13 @@
 import React from 'react';
 import { User } from 'lucide-react';
+import Footer from './Footer';
 
-const Settings: React.FC = () => {
+interface SettingsProps {
+  userEmail: string | null;
+  userName: string | null;
+}
+
+const Settings: React.FC<SettingsProps> = ({ userEmail, userName }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -20,8 +26,8 @@ const Settings: React.FC = () => {
               <User className="h-12 w-12 text-white" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-slate-900">John Trader</h3>
-              <p className="text-slate-600">john.trader@email.com</p>
+              <h3 className="text-2xl font-bold text-slate-900">{userName || "User"}</h3>
+              <p className="text-slate-600">{userEmail || "Not logged in"}</p>
               <button className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
                 Change Photo
               </button>
@@ -33,7 +39,7 @@ const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 mb-2">First Name</label>
               <input
                 type="text"
-                defaultValue="John"
+                defaultValue={userName?.split(' ')[0] || ""}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -41,7 +47,7 @@ const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 mb-2">Last Name</label>
               <input
                 type="text"
-                defaultValue="Trader"
+                defaultValue={userName?.split(' ').slice(1).join(' ') || ""}
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -49,15 +55,17 @@ const Settings: React.FC = () => {
               <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
               <input
                 type="email"
-                defaultValue="john.trader@email.com"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                defaultValue={userEmail || ""}
+                readOnly
+                className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-500"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
               <input
-                type="tel"
-                defaultValue="+1 (555) 123-4567"
+                type="password"
+                defaultValue=""
+                placeholder="Enter new password"
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -73,6 +81,7 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

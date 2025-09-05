@@ -1,0 +1,60 @@
+:root {
+  --footer-height: 40px;
+}
+
+.sticky-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  text-align: center;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.12);
+  z-index: 100;
+  color: white;
+  height: var(--footer-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid rgba(255,255,255,0.12);
+  font-size: 0.875rem;
+}
+
+/* Dark mode support for footer */
+.dark .sticky-footer {
+  background: linear-gradient(90deg, #1e293b, #334155);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  color: #e2e8f0;
+}
+
+.footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.footer-content a {
+  color: #fbbf24;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.footer-content a:hover {
+  color: #fcd34d;
+  text-decoration: underline;
+}
+
+/* Dark mode link colors */
+.dark .footer-content a {
+  color: #60a5fa;
+}
+
+.dark .footer-content a:hover {
+  color: #93c5fd;
+}
+
+/* Helper class to apply bottom padding to the scroll container */
+.with-sticky-footer {
+  padding-bottom: var(--footer-height);
+}

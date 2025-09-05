@@ -1,14 +1,20 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  TrendingUp,
   DollarSign,
   Activity,
-  Eye,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
+import { fetchTopProfitFromSheet, type TopProfit, fetchTradingDayStats, fetchPortfolioStats, type PortfolioStats } from '../lib/sheets';
 
 const Dashboard: React.FC = () => {
+  const [userName, setUserName] = useState<string>('');
+  useEffect(() => {
+    const name = sessionStorage.getItem('auth_name') || '';
+    setUserName(name);
+  }, []);
   const marketIndices = [
     { name: 'NIFTY 50', value: '24,015.30', change: '+85.10', percentage: '+0.36%', trend: 'up' },
     { name: 'SENSEX', value: '79,845.12', change: '+142.55', percentage: '+0.18%', trend: 'up' },
@@ -16,18 +22,111 @@ const Dashboard: React.FC = () => {
     { name: 'NIFTY MIDCAP 100', value: '54,210.90', change: '+210.42', percentage: '+0.39%', trend: 'up' },
   ];
 
-  const topMovers = [
-    { symbol: 'RELIANCE', name: 'Reliance Industries', price: '₹2,945.30', change: '+1.24%', trend: 'up' },
-    { symbol: 'TCS', name: 'Tata Consultancy Services', price: '₹3,764.80', change: '+0.92%', trend: 'up' },
-    { symbol: 'HDFCBANK', name: 'HDFC Bank', price: '₹1,635.50', change: '-0.58%', trend: 'down' },
-    { symbol: 'INFY', name: 'Infosys', price: '₹1,598.40', change: '+1.05%', trend: 'up' },
+  // Fallback data used only if live fetch fails
+  const fallbackProfits: TopProfit[] = [
+    { symbol: 'RELIANCE', name: 'Reliance Industries', profit: 294530, profitPercent: 12.4, tradesCount: 8 },
+    { symbol: 'TCS', name: 'Tata Consultancy Services', profit: 376480, profitPercent: 9.2, tradesCount: 5 },
+    { symbol: 'HDFCBANK', name: 'HDFC Bank', profit: -163550, profitPercent: -5.8, tradesCount: 3 },
+    { symbol: 'INFY', name: 'Infosys', profit: 159840, profitPercent: 10.5, tradesCount: 6 },
   ];
 
-  const portfolioStats = [
-    { title: 'Total Portfolio Value', value: '₹12,45,678', change: '+₹23,412', percentage: '+1.92%', icon: DollarSign },
-  
-    { title: 'Total Positions', value: '23', change: '+2', percentage: 'Active', icon: Activity },
-    
+  const [profits, setProfits] = useState<TopProfit[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
+  const [portfolio, setPortfolio] = useState<PortfolioStats | null>(null);
+  const [portfolioError, setPortfolioError] = useState<string>('');
+  const [portfolioLoading, setPortfolioLoading] = useState<boolean>(false);
+
+  const [tradingStats, setTradingStats] = useState<{
+    best: { date: string; pnl: number };
+    worst: { date: string; pnl: number };
+    monthlyPnl: number;
+  }>({
+    best: { date: '', pnl: 0 },
+    worst: { date: '', pnl: 0 },
+    monthlyPnl: 0
+  });
+
+  const formatPrice = (p: number | string) => {
+    const n = typeof p === 'number' ? p : Number(p);
+    if (!Number.isFinite(n)) return String(p);
+    try {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(n);
+    } catch {
+      return `₹${n.toFixed(2)}`;
+    }
+  };
+
+  const loadPortfolio = async () => {
+    try {
+      setPortfolioLoading(true);
+      setPortfolioError('');
+      const stats = await fetchPortfolioStats({ timeoutMs: 10000 });
+      setPortfolio(stats);
+    } catch (e) {
+      console.error('Failed to load portfolio stats:', e);
+      setPortfolioError('Failed to load portfolio stats.');
+    } finally {
+      setPortfolioLoading(false);
+    }
+  };
+
+  const loadProfits = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await fetchTopProfitFromSheet({ timeoutMs: 12000 });
+      setProfits(Array.isArray(data) ? data.slice(0, 10) : []);
+      setLastUpdated(new Date().toLocaleString());
+    } catch (e: any) {
+      console.warn('[Dashboard] Failed to fetch Top Profits, using fallback', e);
+      setError('Failed to load Top Profits. Showing sample data.');
+      setProfits(fallbackProfits);
+      setLastUpdated('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTradingStats = async () => {
+    try {
+      console.log('Fetching trading stats...');
+      const stats = await fetchTradingDayStats({ timeoutMs: 10000 });
+      console.log('Received stats:', stats);
+      setTradingStats(stats);
+    } catch (e) {
+      console.error('Failed to load trading stats:', e);
+      setTradingStats({
+        best: { date: 'Error', pnl: 0 },
+        worst: { date: 'Error', pnl: 0 },
+        monthlyPnl: 0,
+      });
+    }
+  };
+
+  useEffect(() => {
+    loadProfits();
+    loadTradingStats();
+    loadPortfolio();
+  }, []);
+
+  const portfolioCards = [
+    { 
+      title: 'Total Portfolio Value', 
+      value: portfolio ? formatPrice(portfolio.totalPortfolioValue ?? 0) : (portfolioLoading ? 'Loading...' : '₹0'), 
+      change: '+0', 
+      percentage: portfolio?.lastUpdated ? `as of ${new Date(portfolio.lastUpdated).toLocaleString()}` : 'Live', 
+      icon: DollarSign 
+    },
+    { 
+      title: 'Total Positions', 
+      value: portfolio ? String(portfolio.totalPositions ?? 0) : (portfolioLoading ? 'Loading...' : '0'), 
+      change: '+0', 
+      percentage: portfolio ? `${portfolio.uniqueStocksCount ?? 0} unique stocks` : 'Open', 
+      icon: Activity 
+    },
   ];
 
   return (
@@ -36,7 +135,7 @@ const Dashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="heading">Dashboard</h1>
-          <p className="subheading mt-1">Welcome back, John. Here's your market overview.</p>
+          <p className="subheading mt-1">{`Welcome back${userName ? `, ${userName}` : ''}. Here's your market overview.`}</p>
         </div>
         <div className="text-right">
           <p className="text-sm text-slate-600">Market Status</p>
@@ -47,11 +146,37 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+     
       {/* Portfolio Stats */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-slate-900">Portfolio Stats</h2>
+        <div className="flex items-center gap-3">
+          {portfolio?.lastUpdated && (
+            <span className="text-xs text-slate-500">Last updated: {new Date(portfolio.lastUpdated).toLocaleString()}</span>
+          )}
+          <button
+            onClick={loadPortfolio}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 focus-ring"
+            aria-label="Refresh Portfolio Stats"
+            disabled={portfolioLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${portfolioLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {portfolioError && (
+        <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
+          <AlertCircle className="w-4 h-4" />
+          {portfolioError}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {portfolioStats.map((stat, index) => {
+        {portfolioCards.map((stat, index) => {
           const Icon = stat.icon;
-          const isPositive = stat.change.startsWith('+');
+          const isPositive = typeof stat.change === 'string' && stat.change.trim().startsWith('+');
   
           return (
             <div key={index} className="surface-card p-6 hover:shadow-md transition-all duration-200 subtle-hover w-full">
@@ -60,44 +185,68 @@ const Dashboard: React.FC = () => {
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-900">{stat.value}</p>
+                  <p className="text-2xl font-bold text-slate-900">{portfolioLoading ? 'Loading…' : stat.value}</p>
                   <div className="flex items-center justify-end gap-2">
                     {isPositive ? (
                       <ArrowUpRight className="h-4 w-4 text-success-600" />
                     ) : (
                       <ArrowDownRight className="h-4 w-4 text-danger-600" />
                     )}
-                    <p className={`text-sm ${isPositive ? 'text-success-700' : 'text-danger-700'}`}>
-                      {stat.change}
-                    </p>
+                    {!portfolioLoading && (
+                      <p className={`text-sm ${isPositive ? 'text-success-700' : 'text-danger-700'}`}>
+                        {stat.change}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
               
               <div className="mt-4">
                 <h3 className="font-semibold text-slate-800">{stat.title}</h3>
-                <p className="text-sm text-slate-600">{stat.percentage}</p>
+                <p className="text-sm text-slate-600">{portfolioLoading ? 'Fetching latest…' : stat.percentage}</p>
                 
                 {/* Additional content */}
                 <div className="mt-3 pt-3 border-t border-slate-100">
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-slate-500">Daily Trend</span>
                     <span className={`text-xs font-medium ${isPositive ? 'text-success-700' : 'text-danger-700'}`}>
-                      {isPositive ? 'Increasing' : 'Decreasing'}
+                      {portfolioLoading ? '—' : (isPositive ? 'Increasing' : 'Decreasing')}
                     </span>
                   </div>
-                  
-                  {stat.title.includes('Portfolio') && (
+                  {stat.title.includes('Portfolio') && portfolio && !portfolioLoading && (
                     <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-slate-500">All Time High</span>
-                      <span className="text-xs font-medium text-slate-800">₹13,12,456</span>
+                      <span className="text-xs text-slate-500">Realized P&L</span>
+                      <span className={`text-xs font-medium ${portfolio.totalRealizedPnl >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                        {formatPrice(portfolio.totalRealizedPnl)}
+                      </span>
                     </div>
                   )}
-                  
-                  {stat.title.includes('Positions') && (
+                  {stat.title.includes('Portfolio') && portfolio && !portfolioLoading && (
                     <div className="flex justify-between items-center mt-2">
-                      <span className="text-xs text-slate-500">Active Trades</span>
-                      <span className="text-xs font-medium text-slate-800">15</span>
+                      <span className="text-xs text-slate-500">Unrealized P&L</span>
+                      <span className={`text-xs font-medium ${(portfolio.netUnrealizedPnl ?? 0) >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                        {formatPrice(portfolio.netUnrealizedPnl ?? 0)}
+                      </span>
+                    </div>
+                  )}
+                  {stat.title.includes('Positions') && portfolio && !portfolioLoading && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-slate-500">Gross Open Exposure</span>
+                      <span className="text-xs font-medium text-slate-800">{formatPrice(portfolio.grossOpenExposure)}</span>
+                    </div>
+                  )}
+                  {stat.title.includes('Positions') && portfolio && !portfolioLoading && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-slate-500">Open Positions MV</span>
+                      <span className="text-xs font-medium text-slate-800">{formatPrice(portfolio.openPositionsMarketValue ?? 0)}</span>
+                    </div>
+                  )}
+                  {stat.title.includes('Positions') && portfolio && !portfolioLoading && (
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-slate-500">Unrealized P&L</span>
+                      <span className={`text-xs font-medium ${(portfolio.netUnrealizedPnl ?? 0) >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                        {formatPrice(portfolio.netUnrealizedPnl ?? 0)}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -107,135 +256,101 @@ const Dashboard: React.FC = () => {
         })}
       </div>
 
-      {/* Market Indices */}
-      <div className="surface-card p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-4">Market Indices</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {marketIndices.map((index, i) => (
-            <div key={i} className="p-4 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-slate-800">{index.name}</h3>
-                {index.trend === 'up' ? (
-                  <ArrowUpRight className="h-5 w-5 text-success-600" />
-                ) : (
-                  <ArrowDownRight className="h-5 w-5 text-danger-600" />
-                )}
-              </div>
-              <p className="text-2xl font-bold text-slate-900">{index.value}</p>
-              <div className="flex items-center space-x-2 mt-2">
-                <span className={`text-sm font-medium ${index.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
-                  {index.change}
-                </span>
-                <span className={`text-sm ${index.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
-                  {index.percentage}
-                </span>
-              </div>
-            </div>
-          ))}
+      {/* P&L Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Monthly P&L */}
+        <div className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Monthly P&L</h2>
+          <p className={`text-2xl font-bold ${tradingStats.monthlyPnl >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+            {formatPrice(tradingStats.monthlyPnl)}
+          </p>
+          <p className="text-sm text-slate-600 mt-1">
+            {new Date().toLocaleString('default', { month: 'long' })}
+          </p>
+        </div>
+
+        {/* Best Trading Day */}
+        <div className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Best Trading Day</h2>
+          <p className="text-2xl font-bold text-success-700">
+            {formatPrice(tradingStats.best.pnl)}
+          </p>
+          <p className="text-sm text-slate-600 mt-1">
+            {tradingStats.best.date || 'No data'}
+          </p>
+        </div>
+
+        {/* Worst Trading Day */}
+        <div className="surface-card p-6">
+          <h2 className="text-lg font-bold text-slate-900 mb-2">Worst Trading Day</h2>
+          <p className="text-2xl font-bold text-danger-700">
+            {formatPrice(tradingStats.worst.pnl)}
+          </p>
+          <p className="text-sm text-slate-600 mt-1">
+            {tradingStats.worst.date || 'No data'}
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="surface-card p-6 flex flex-col justify-between">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Monthly P&L</h2>
-          <p className="text-3xl font-bold text-primary-700">₹45,200</p>
-          <p className="text-sm text-success-700 mt-1">+₹8,500 (18.8%)</p>
-          <p className="text-xs text-slate-500 mt-2">June 2024</p>
+      {/* Temporary debug view - can remove later */}
+      
+      {/* Top Profit Companies */}
+      <div className="surface-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-slate-900">Top Profit Companies</h2>
+          <div className="flex items-center gap-3">
+            {lastUpdated && (
+              <span className="text-xs text-slate-500">Last updated: {lastUpdated}</span>
+            )}
+            <button
+              onClick={loadProfits}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 focus-ring"
+              aria-label="Refresh Top Profits"
+              disabled={loading}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
-        <div className="surface-card p-6 flex flex-col justify-between">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Today's P&L</h2>
-          <p className="text-3xl font-bold text-primary-700">₹2,300</p>
-          <p className="text-sm text-success-700 mt-1">+₹300 (15%)</p>
-          <p className="text-xs text-slate-500 mt-2">July 3, 2024</p>
-        </div>
-      </div>
-      {/* Best/Worst Trading Date Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="surface-card p-6 flex flex-col justify-between">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Best Trading Day</h2>
-          <p className="text-2xl font-bold text-green-700">₹3,200</p>
-          <p className="text-sm text-slate-600 mt-1">July 12, 2024</p>
-          <span className="inline-block px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs mt-2">Profit</span>
-        </div>
-        <div className="surface-card p-6 flex flex-col justify-between">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">Worst Trading Day</h2>
-          <p className="text-2xl font-bold text-red-700">-₹2,100</p>
-          <p className="text-sm text-slate-600 mt-1">July 7, 2024</p>
-          <span className="inline-block px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs mt-2">Loss</span>
-        </div>
-      </div>
-      {/* Statistics Section */}
-       
-        {/* Top Movers */}
-        <div className="surface-card p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Top Movers</h2>
-          <div className="space-y-3">
-            {topMovers.map((stock, index) => (
+
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mb-3">
+            <AlertCircle className="w-4 h-4" />
+            {error}
+          </div>
+        )}
+
+        <div className="max-h-80 overflow-y-auto no-scrollbar space-y-3">
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-3 border border-slate-200 rounded-xl shimmer">Loading</div>
+            ))
+          ) : (
+            (profits.length > 0 ? profits : fallbackProfits).map((company, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors">
                 <div className="flex items-center space-x-3">
                   <div className="w-10 h-10 bg-gradient-to-r from-primary-600 to-secondary-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">{stock.symbol.charAt(0)}</span>
+                    <span className="text-white font-bold text-sm">{company.symbol?.charAt(0) || '?'}</span>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-800">{stock.symbol}</p>
-                    <p className="text-sm text-slate-600">{stock.name}</p>
+                    <p className="font-semibold text-slate-800">{company.symbol}</p>
+                    <p className="text-sm text-slate-600">{company.name}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-slate-900">{stock.price}</p>
-                  <p className={`text-sm font-medium ${stock.trend === 'up' ? 'text-success-700' : 'text-danger-700'}`}>
-                    {stock.change}
+                  <p className={`font-semibold ${Number(company.profit) >= 0 ? 'text-success-700' : 'text-danger-700'}`}>
+                    {formatPrice(Number(company.profit))}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {(company.tradesCount ?? -1) >= 0 ? company.tradesCount : 'N/A'} trades • {company.profitPercent?.toFixed(2)}%
                   </p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent News */}
-        <div className="surface-card p-6">
-          <h2 className="text-xl font-bold text-slate-900 mb-4">Market News</h2>
-          <div className="space-y-4">
-            {[
-              {
-                title: "Fed Signals Potential Rate Cuts Ahead",
-                time: "2 hours ago",
-                source: "Financial Times"
-              },
-              {
-                title: "Tech Stocks Rally on AI Optimism",
-                time: "4 hours ago",
-                source: "Bloomberg"
-              },
-              {
-                title: "Energy Sector Shows Strong Performance",
-                time: "6 hours ago",
-                source: "Reuters"
-              },
-              {
-                title: "Crypto Markets Surge on Regulatory Clarity",
-                time: "8 hours ago",
-                source: "CoinDesk"
-              }
-            ].map((news, index) => (
-              <div key={index} className="p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:shadow-sm transition-colors cursor-pointer">
-                <h3 className="font-semibold text-slate-800 mb-1">{news.title}</h3>
-                <div className="flex items-center justify-between text-sm text-slate-600">
-                  <span>{news.source}</span>
-                  <span>{news.time}</span>
-                </div>
-              </div>
-            ))}
-          </div>
+            ))
+          )}
         </div>
       </div>
-      
-     
-      {/* Weekday Performance Bar Chart */}
-     
-      {/* Calendar View with Daily P&L */}
-     
     </div>
   );
 };

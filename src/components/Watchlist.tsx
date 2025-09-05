@@ -9,6 +9,7 @@ import {
   Bell,
   Eye
 } from 'lucide-react';
+import Footer from './Footer';
 
 const Watchlist: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -218,6 +219,7 @@ const Watchlist: React.FC = () => {
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

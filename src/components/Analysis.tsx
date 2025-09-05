@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Info
 } from 'lucide-react';
+import Footer from './Footer';
 
 const Analysis: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('AAPL');
@@ -252,6 +253,7 @@ const Analysis: React.FC = () => {
           ))}
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import Footer from './Footer';
 
 const Calendar: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -307,6 +308,7 @@ const Calendar: React.FC = () => {
           ))}
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

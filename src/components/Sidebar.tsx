@@ -1,18 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   LayoutDashboard,
   TrendingUp,
-  Briefcase,
   Settings,
   Menu,
-  X,
   User,
   LogOut,
-  ArrowLeftRight,
   BookOpen,
   Sun,
   Moon
 } from 'lucide-react';
+import Footer from './Footer';
+import { useTheme } from '../context/ThemeContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -21,25 +20,11 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
   onLogout?: () => void;
   userEmail: string | null;
+  userName?: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout, userEmail }) => {
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved) return saved === 'dark';
-    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) {
-      root.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      root.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDark]);
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, setCollapsed, onLogout, userEmail, userName }) => {
+  const { theme, toggleTheme } = useTheme();
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'journal', label: 'Trade Journal', icon: BookOpen },
@@ -68,21 +53,30 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
           </div>
         )}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsDark((v) => !v)}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            aria-label="Toggle theme"
-            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            aria-label="Toggle sidebar"
-          >
-            {collapsed ? <Menu className="h-5 w-5" /> : <X className="h-5 w-5" />}
-          </button>
+        <div className="flex justify-end items-center gap-2">
+        <div className="flex justify-between items-center">
+  {/* Menu Toggle Button on Left */}
+  <button
+    onClick={() => setCollapsed(!collapsed)}
+    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+    aria-label="Toggle sidebar"
+  >
+    <Menu className="h-5 w-5" />
+  </button>
+
+  {/* Theme Toggle Button on Right */}
+  <button
+    onClick={toggleTheme}
+    className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+    aria-label="Toggle theme"
+    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+  >
+    {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+  </button>
+</div>
+
+</div>
+
         </div>
       </div>
 
@@ -94,15 +88,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
           </div>
           {!collapsed && (
             <div>
-              <p className="font-semibold text-slate-800 dark:text-slate-100">{userEmail || "Guest"}</p>
-              
+              <p className="font-semibold text-slate-800 dark:text-slate-100">{userName || userEmail || "Guest"}</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4">
+      {/* Navigation (scrollable) */}
+      <nav className="flex-1 overflow-y-auto p-4">
         <ul className="space-y-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -127,16 +120,25 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
         </ul>
       </nav>
 
-      {/* Logout action */}
-      <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center justify-start space-x-3 p-3 rounded-xl text-danger-700 hover:text-white hover:bg-danger-600 transition-colors"
-        >
-          <LogOut className="h-5 w-5" />
-          {!collapsed && <span className="font-medium">Logout</span>}
-        </button>
+      {/* Logout button (sticky at bottom) */}
+      <div className="sticky bottom-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+        <div className="p-4">
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-start space-x-3 p-3 rounded-xl text-danger-700 hover:text-white hover:bg-danger-600 transition-colors"
+          >
+            <LogOut className="h-5 w-5" />
+            {!collapsed && <span className="font-medium">Logout</span>}
+          </button>
+        </div>
       </div>
+
+      {/* Footer */}
+      {!collapsed && (
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+          <Footer />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Filter, Search, Star, ArrowUpDown, CheckCircle2, XCircle } from 'lucide-react';
+import Footer from './Footer';
 
 type Stock = {
   symbol: string;
@@ -294,6 +295,7 @@ const Screener: React.FC = () => {
           </table>
         </div>
       </div>
+      <Footer />
     </div>
   );
 };

@@ -7,6 +7,7 @@ import {
   Bookmark,
   Share2
 } from 'lucide-react';
+import Footer from './Footer';
 
 const News: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -268,6 +269,7 @@ const News: React.FC = () => {
           Load More Articles
         </button>
       </div>
+      <Footer />
     </div>
   );
 };

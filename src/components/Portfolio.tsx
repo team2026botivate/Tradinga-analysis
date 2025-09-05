@@ -8,6 +8,7 @@ import {
   Plus,
   MoreVertical
 } from 'lucide-react';
+import Footer from './Footer';
 
 const Portfolio: React.FC = () => {
   const [view, setView] = useState('overview');
@@ -311,6 +312,7 @@ const Portfolio: React.FC = () => {
           </div>
         </div>
       )}
+      <Footer />
     </div>
   );
 };

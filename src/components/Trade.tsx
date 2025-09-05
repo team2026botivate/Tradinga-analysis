@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { getTrades, toCSV, addTrade, Trade as JournalTrade } from '../store/trades';
 import Select from './ui/Select';
 import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft } from 'lucide-react';
+import { syncTradingDayToSheet, syncTradeToSheet } from '../lib/sheets';
 
 // Simple price map for demo. In a real app, fetch live prices.
 const demoPrices: Record<string, { name: string; price: number }> = {
@@ -96,48 +97,6 @@ const Trade: React.FC = () => {
   const totalBuy = (buyQty || 0) * (buyPrice || 0);
   const totalSell = (sellQty || 0) * (sellPrice || 0);
 
-  // Seed/clear demo data to make Trade/Transactions/P&L functional instantly
-  const seedDemo = () => {
-    const now = Date.now();
-    const demoTx = [
-      { id: `${now-500000}_a1`, type: 'BUY' as const, symbol: 'RELIANCE', name: demoPrices.RELIANCE.name, qty: 10, price: 2900, total: 29000, timestamp: now - 500000, orderType: 'Market' as const },
-      { id: `${now-450000}_a2`, type: 'BUY' as const, symbol: 'INFY', name: demoPrices.INFY.name, qty: 15, price: 1550, total: 23250, timestamp: now - 450000, orderType: 'Limit' as const },
-      { id: `${now-420000}_a3`, type: 'BUY' as const, symbol: 'ONGC', name: demoPrices.ONGC.name, qty: 50, price: 275, total: 13750, timestamp: now - 420000, orderType: 'Market' as const },
-      { id: `${now-300000}_a4`, type: 'SELL' as const, symbol: 'INFY', name: demoPrices.INFY.name, qty: 5, price: 1605, total: 8025, timestamp: now - 300000, orderType: 'Market' as const },
-      { id: `${now-200000}_a5`, type: 'BUY' as const, symbol: 'SBIN', name: demoPrices.SBIN.name, qty: 20, price: 820, total: 16400, timestamp: now - 200000, orderType: 'Market' as const },
-      { id: `${now-100000}_a6`, type: 'SELL' as const, symbol: 'RELIANCE', name: demoPrices.RELIANCE.name, qty: 4, price: 2950, total: 11800, timestamp: now - 100000, orderType: 'Limit' as const },
-    ];
-
-    // Compute holdings from txns
-    const holdings: Holdings = {};
-    for (const tx of demoTx) {
-      const cur = holdings[tx.symbol] || { symbol: tx.symbol, name: tx.name, qty: 0, avgPrice: 0 };
-      if (tx.type === 'BUY') {
-        const newQty = cur.qty + tx.qty;
-        const newCost = cur.qty * cur.avgPrice + tx.qty * tx.price;
-        holdings[tx.symbol] = { symbol: tx.symbol, name: tx.name, qty: newQty, avgPrice: newQty ? newCost / newQty : 0 };
-      } else {
-        const newQty = Math.max(0, cur.qty - tx.qty);
-        holdings[tx.symbol] = { ...cur, qty: newQty };
-      }
-    }
-
-    // Save (newest first)
-    storage.setTxns(demoTx.sort((a,b) => b.timestamp - a.timestamp));
-    storage.setHoldings(holdings);
-    setHoldingsVersion(v => v + 1);
-    setSuccess('Demo data loaded');
-    setTimeout(() => setSuccess(''), 2500);
-  };
-
-  const clearDemo = () => {
-    localStorage.removeItem('transactions');
-    localStorage.removeItem('holdings');
-    setHoldingsVersion(v => v + 1);
-    setSuccess('Demo data cleared');
-    setTimeout(() => setSuccess(''), 2000);
-  };
-
   const doBuy = () => {
     setShowConfirm({ action: 'BUY', payload: { symbol: buySymbol, name: buyName, qty: buyQty, price: buyPrice, orderType: buyOrderType } });
   };
@@ -194,6 +153,8 @@ const Trade: React.FC = () => {
           notes: `Order: ${tx.orderType}`,
         };
         addTrade(jt as any);
+        // Fire-and-forget sync to Google Sheets
+        void syncTradeToSheet(jt as any);
       } catch {}
     } else {
       // SELL: reduce qty, keep avgPrice same
@@ -215,6 +176,8 @@ const Trade: React.FC = () => {
           notes: `Order: ${tx.orderType}`,
         };
         addTrade(jt as any);
+        // Fire-and-forget sync to Google Sheets
+        void syncTradeToSheet(jt as any);
       } catch {}
     }
 
@@ -338,15 +301,10 @@ const Trade: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Trade</h1>
           <p className="text-slate-600 mt-1">Buy or sell stocks. Transactions are stored locally.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={seedDemo} className="btn bg-blue-600 text-white hover:bg-blue-700 shadow-sm subtle-hover">Load Demo</button>
-          <button onClick={clearDemo} className="btn bg-slate-100 text-slate-700 subtle-hover">Clear</button>
         </div>
       </div>
 
@@ -371,11 +329,9 @@ const Trade: React.FC = () => {
             <input type="date" value={filters.dateTo} onChange={e => setFilters(s => ({ ...s, dateTo: e.target.value }))} className="input" />
           </label>
           <div className="self-start -mt-1 md:-mt-2 flex items-center gap-2">
-            <button onClick={seedDemo} className="btn-primary">Load Demo Data</button>
-            <button onClick={clearDemo} className="btn-outline-danger">Clear Data</button>
             <button
               onClick={() => {
-                setDraftDate(new Date().toISOString().slice(0,16));
+                setDraftDate(new Date().toISOString().slice(0,10));
                 setShowFormModal(true);
               }}
               className="btn-secondary"
@@ -689,10 +645,10 @@ const Trade: React.FC = () => {
 // ---------------- Trading Day Form (Popup) ----------------
 type TradingDayRecord = {
   id: string;
-  date: string; // datetime-local
+  date: string; // YYYY-MM-DD
   tradesCount: number;
   symbols: string[];
-  result: 'profit' | 'loss' | 'breakeven';
+  result: 'profit' | 'loss' | 'breakeven' | 'open';
   netMtm: number; // before brokerage
   brokerage: number;
   strategies: string[];
@@ -716,11 +672,11 @@ const strategiesPreset = [
 
 const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCancel?: () => void }>
   = ({ initialDate, onSaved, onCancel }) => {
-  const [date, setDate] = useState<string>(initialDate ?? new Date().toISOString().slice(0,16));
+  const [date, setDate] = useState<string>(initialDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
   const [tradesCount, setTradesCount] = useState<number>(0);
   const [symbols, setSymbols] = useState<string[]>([]);
   const [symInput, setSymInput] = useState('');
-  const [result, setResult] = useState<'profit'|'loss'|'breakeven'>('profit');
+  const [result, setResult] = useState<'profit'|'loss'|'breakeven'|'open'>('profit');
   const [netMtm, setNetMtm] = useState<number>(0);
   const [brokerage, setBrokerage] = useState<number>(0.1);
   const [strategies, setStrategies] = useState<string[]>([]);
@@ -790,6 +746,8 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       arr.unshift(rec);
       localStorage.setItem(key, JSON.stringify(arr));
     } catch {}
+    // Fire-and-forget sync to Google Sheets (Apps Script)
+    void syncTradingDayToSheet(rec);
     onSaved();
   };
 
@@ -798,7 +756,7 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       {/* Date */}
       <label className="block text-sm">
         <span className="block mb-1 text-slate-700">Trading Date *</span>
-        <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} className="input" />
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input" />
       </label>
 
       {/* Number of trades */}
