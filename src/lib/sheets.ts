@@ -11,9 +11,11 @@ const DEFAULT_SPREADSHEET_ID = "1jfKHZypAhaJVzrQd76okmMipUr7luRFkF5N_q0TKJqo";
 const GAS_URL_ENV: string | undefined = (import.meta as any).env?.VITE_GAS_URL;
 const SPREADSHEET_ID_ENV: string | undefined = (import.meta as any).env?.VITE_GS_SHEET_ID;
 const IS_DEV: boolean = !!(import.meta as any).env?.DEV;
+// Shared helper to compute the base Apps Script URL consistently
+const GAS_BASE_URL: string = IS_DEV ? '/gs' : (GAS_URL_ENV || DEFAULT_GAS_URL);
 
 // In dev, prefer the Vite proxy path '/gs' to bypass CORS unless explicitly overridden by env
-const GAS_URL: string = GAS_URL_ENV || (IS_DEV ? '/gs' : DEFAULT_GAS_URL);
+const GAS_URL: string = GAS_BASE_URL;
 const SPREADSHEET_ID: string = SPREADSHEET_ID_ENV || DEFAULT_SPREADSHEET_ID;
 const TRADES_SHEET_NAME_ENV: string | undefined = (import.meta as any).env?.VITE_GS_TRADES_SHEET;
 const DEFAULT_TRADES_SHEET: string = TRADES_SHEET_NAME_ENV || 'All Record';
@@ -261,15 +263,9 @@ export interface TradeData {
 
 export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeoutMs?: number; tradeDate?: string }): Promise<Trade[]> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined; // full exec URL in production
-
-  if (!isDev && !gasUrl) {
-    throw new Error('Missing VITE_GAS_URL');
-  }
-
   // In dev, use the '/gs' proxy which rewrites to the fixed exec URL in vite.config.ts
-  // In prod, call the full exec URL directly and only append the query string
-  const url = isDev ? `/gs?action=getTrades` : `${gasUrl}?action=getTrades`;
+  // In prod, call the full exec URL directly and only append the query string (with fallback)
+  const url = isDev ? `/gs?action=getTrades` : `${GAS_BASE_URL}?action=getTrades`;
 
   if (isDev) console.log('[Sheets] GET', url);
 
@@ -465,14 +461,8 @@ export interface TopMover {
 
 export const fetchTopMoversFromSheet = async (opts?: { signal?: AbortSignal; timeoutMs?: number; sheet?: string }): Promise<TopMover[]> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-
-  if (!isDev && !gasUrl) {
-    throw new Error('Missing VITE_GAS_URL');
-  }
-
   const sheet = opts?.sheet ? `&sheet=${encodeURIComponent(opts.sheet)}` : '';
-  const url = isDev ? `/gs?action=getTopMovers${sheet}` : `${gasUrl}?action=getTopMovers${sheet}`;
+  const url = isDev ? `/gs?action=getTopMovers${sheet}` : `${GAS_BASE_URL}?action=getTopMovers${sheet}`;
 
   if (isDev) console.log('[Sheets] GET', url);
 
@@ -586,12 +576,8 @@ export const fetchTopProfitFromSheet = async (opts?: {
   sheet?: string 
 }): Promise<TopProfit[]> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-
-  if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
-
   const sheet = opts?.sheet ? `&sheet=${encodeURIComponent(opts.sheet)}` : '';
-  const url = isDev ? `/gs?action=getTopProfit${sheet}` : `${gasUrl}?action=getTopProfit${sheet}`;
+  const url = isDev ? `/gs?action=getTopProfit${sheet}` : `${GAS_BASE_URL}?action=getTopProfit${sheet}`;
 
   if (isDev) console.log('[Sheets] GET', url);
 
@@ -631,13 +617,9 @@ export const fetchPortfolioStats = async (opts?: {
   sheet?: string;
 }): Promise<PortfolioStats> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-
-  if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
-
   const sheetName = opts?.sheet ?? DEFAULT_TRADES_SHEET;
   const sheet = sheetName ? `&sheet=${encodeURIComponent(sheetName)}` : '';
-  const url = isDev ? `/gs?action=getPortfolioStats${sheet}` : `${gasUrl}?action=getPortfolioStats${sheet}`;
+  const url = isDev ? `/gs?action=getPortfolioStats${sheet}` : `${GAS_BASE_URL}?action=getPortfolioStats${sheet}`;
 
   const response = await fetchWithTimeout(
     url,
@@ -687,15 +669,11 @@ export const fetchTradingDayStats = async (opts?: {
   console.log('[Sheets] Fetching trading day stats');
   try {
     const isDev = !!import.meta.env.DEV;
-    const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-
-    if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
-
     const sheetName = opts?.sheet ?? DEFAULT_TRADES_SHEET;
     const sheet = sheetName ? `&sheet=${encodeURIComponent(sheetName)}` : '';
     const url = isDev
       ? `/gs?action=getTradingDayStats${sheet}`
-      : `${gasUrl}?action=getTradingDayStats${sheet}`;
+      : `${GAS_BASE_URL}?action=getTradingDayStats${sheet}`;
 
     console.log('[Sheets] Request URL:', url);
 
@@ -782,11 +760,9 @@ export const sendOtp = async (
   opts?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<OtpSendResult> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-  if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
   const url = isDev
     ? `/gs?action=sendOtp&email=${encodeURIComponent(email)}`
-    : `${gasUrl}?action=sendOtp&email=${encodeURIComponent(email)}`;
+    : `${GAS_BASE_URL}?action=sendOtp&email=${encodeURIComponent(email)}`;
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
@@ -807,11 +783,9 @@ export const verifyOtp = async (
   opts?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<OtpVerifyResult> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-  if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
   const url = isDev
     ? `/gs?action=verifyOtp&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`
-    : `${gasUrl}?action=verifyOtp&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
+    : `${GAS_BASE_URL}?action=verifyOtp&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
@@ -835,11 +809,9 @@ export const loginWithPassword = async (
   opts?: { signal?: AbortSignal; timeoutMs?: number }
 ): Promise<{ success: boolean; message?: string; error?: string }> => {
   const isDev = !!import.meta.env.DEV;
-  const gasUrl = import.meta.env.VITE_GAS_URL as string | undefined;
-  if (!isDev && !gasUrl) throw new Error('Missing VITE_GAS_URL');
   const url = isDev
     ? `/gs?action=loginWithPassword&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
-    : `${gasUrl}?action=loginWithPassword&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
+    : `${GAS_BASE_URL}?action=loginWithPassword&email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`;
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
