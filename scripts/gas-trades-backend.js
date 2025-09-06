@@ -82,8 +82,8 @@ function verifyLogin_(email, code) {
     email = String(email || '').trim();
     code = String(code || '').trim();
     try {
-      var m = email ? email.replace(/(^.).*(@.*$)/, '$1***$2') : '';
-      console.log('[verifyLogin] Begin for', m);
+      var m2 = email ? email.replace(/(^.).*(@.*$)/, '$1***$2') : '';
+      console.log('[verifyLogin] Begin for', m2);
     } catch {}
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       console.warn('[verifyLogin] Invalid email');
@@ -139,7 +139,14 @@ function verifyLogin_(email, code) {
       } catch {}
       return json_(verifyOtp_(String(p.email || ''), String(p.code || '')));
     }
-    // Note: password/signup flows removed. Only OTP-based endpoints remain.
+    if (p.action === 'getUserProfile') {
+      try {
+        var emailStr4 = String(p.email || '');
+        var masked4 = emailStr4 ? emailStr4.replace(/(^.).*(@.*$)/, '$1***$2') : '';
+        console.log('[doGet] Routing to getUserProfile for', masked4);
+      } catch {}
+      return json_(getUserProfile_(String(p.email || '')));
+    }
     if (p.sheet && (p.action === 'fetch' || !p.action)) {
       // Optional legacy fetch you shared; returns 2D array
       return fetchSheetData(p.sheet);
@@ -196,6 +203,24 @@ function findGmailRow_(sh, gmail) {
     if (g && g === target) return i + 1; // 1-indexed
   }
   return -1;
+}
+
+// Return profile by Gmail: Column B (User ID/Role), Column C (Name), Column D (Gmail)
+function getUserProfile_(gmail) {
+  try {
+    var sh = getLoginMasterSheet_();
+    var row = findGmailRow_(sh, gmail);
+    if (row === -1) {
+      return { success: false, error: 'User not found' };
+    }
+    // Sheet headers (A-F): Serial No | User ID | Name | Gmail | Password | OTP
+    var userId = String(sh.getRange(row, 2).getValue() || ''); // Column B
+    var name = String(sh.getRange(row, 3).getValue() || '');   // Column C
+    var email = String(sh.getRange(row, 4).getValue() || '');  // Column D
+    return { success: true, email: email, userId: userId, name: name };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
 }
 
 function findEmailRow_(sh, email) {
@@ -1096,13 +1121,13 @@ function nonEmptyRow_(r) {
 function sendOtp_(email) {
   try {
     email = String(email || '').trim();
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
       return { success: false, error: 'Invalid email' };
     }
 
     // Log masked email and start of OTP flow
     try {
-      var masked = email.replace(/(^.).*(@.*$)/, '$1***$2');
+      var masked = email ? email.replace(/(^.).*(@.*$)/, '$1***$2') : '';
       console.log('[sendOtp_] Start for', masked);
     } catch {}
 
@@ -1187,27 +1212,26 @@ function verifyOtp_(email, code) {
       return { success: false, error: 'Invalid email' };
     }
     if (!/^\d{6}$/.test(code)) {
-      return { success: false, error: 'Invalid code' };
+      return { success: false, error: 'Invalid OTP format' };
     }
     // Look up OTP in LoginMaster sheet
     var sh = getLoginMasterSheet_();
-    var row = findGmailRow_(sh, email);
+    var row = findGmailRow_(sh, email); // Column D
+    
     if (row === -1) {
-      try { console.warn('[verifyOtp_] Gmail not found in LoginMaster'); } catch {}
-      return { success: false, error: 'User not found' };
+      return { success: false, error: 'Email not found' };
     }
-    var stored = String(sh.getRange(row, 6).getValue() || '').trim(); // Col F: OTP
-    if (!stored) {
-      return { success: false, error: 'Code expired or not found' };
+    
+    // Get OTP from column F (index 5)
+    var storedOtp = String(sh.getRange(row, 6).getValue() || '').trim();
+    
+    if (storedOtp === code) {
+      // Clear OTP after successful verification
+      sh.getRange(row, 6).setValue('');
+      return { success: true, message: 'OTP verified' };
+    } else {
+      return { success: false, error: 'Invalid OTP' };
     }
-    if (stored !== code) {
-      return { success: false, error: 'Incorrect code' };
-    }
-    // Success: clear OTP and return name for dashboard
-    sh.getRange(row, 6).clearContent();
-    var name = String(sh.getRange(row, 3).getValue() || ''); // Col C: Name
-    try { console.log('[verifyOtp_] Verified successfully for Gmail in row', row); } catch {}
-    return { success: true, email: email, name: name };
   } catch (e) {
     return { success: false, error: String(e) };
   }

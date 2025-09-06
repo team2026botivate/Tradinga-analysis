@@ -15,9 +15,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [code, setCode] = useState('');
   const [info, setInfo] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState<number>(0);
+  const [name, setName] = useState<string | null>(null);
   
-
-  // basic email format check
   const isEmailValid = useMemo(() => /.+@.+\..+/.test(email.trim()), [email]);
 
   useEffect(() => {
@@ -74,10 +73,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
         return;
       }
-      // Store session info: email and optional name from backend
+      if (res.name) {
+        setName(res.name);
+        sessionStorage.setItem('auth_name', res.name);
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Show name for 1s
+      }
       sessionStorage.setItem('auth_email', email);
-      if (res.name) sessionStorage.setItem('auth_name', res.name);
-      // For remember me, persist a simple flag token to keep existing app checks working
       if (remember) {
         localStorage.setItem('auth_token', 'ok');
       } else {
@@ -95,19 +96,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 p-6">
       <div className="w-full max-w-md">
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-700/50 rounded-3xl shadow-2xl overflow-hidden relative">
-          {/* Animated background gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-indigo-500/5 to-purple-500/5 animate-pulse"></div>
           <div className="relative p-8">
             <div className="mb-8 text-center">
               <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg ring-4 ring-blue-100 dark:ring-blue-900/30">
                 <LogIn className="h-8 w-8 text-white" />
               </div>
-              <h1 className="mt-6 text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 dark:from-slate-100 dark:via-blue-100 dark:to-indigo-100 bg-clip-text text-transparent">Welcome back</h1>
+              <h1 className="mt-6 text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 dark:from-slate-100 dark:via-blue-100 dark:to-indigo-100 bg-clip-text text-transparent">
+                Welcome back{name ? `, ${name}` : ''}
+              </h1>
               <p className="text-slate-600 dark:text-slate-400 font-medium">Sign in to continue to your trading dashboard</p>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-5" autoComplete="on">
-              {/* OTP-only mode (password login removed) */}
               <div>
                 <label htmlFor="login-email" className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Email Address</label>
                 <div className="relative group">
@@ -124,8 +125,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   />
                 </div>
               </div>
-
-              {/* Password flow removed */}
 
               {step === 'code' && (
                 <div>

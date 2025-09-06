@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getTrades, toCSV, addTrade, Trade as JournalTrade } from '../store/trades';
 import Select from './ui/Select';
-import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft } from 'lucide-react';
+import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft, CalendarDays, ListOrdered, Tags, BarChart, Wallet, FileText } from 'lucide-react';
 import { syncTradingDayToSheet, syncTradeToSheet } from '../lib/sheets';
 
 // Simple price map for demo. In a real app, fetch live prices.
@@ -752,25 +752,27 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5">
+    <form onSubmit={submit} className="space-y-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="text-xl font-bold text-slate-900 dark:text-white mb-4">Add Trading Day</div>
+      
       {/* Date */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700">Trading Date *</span>
+        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><CalendarDays className="h-4 w-4"/> Trading Date *</span>
         <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input" />
       </label>
-
+      
       {/* Number of trades */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700">Number of Trades</span>
+        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><ListOrdered className="h-4 w-4"/> Number of Trades</span>
         <input type="number" value={tradesCount} onChange={e=>setTradesCount(Number(e.target.value))} className="input" />
       </label>
-
+      
       {/* Symbols tag input */}
       <div className="space-y-2">
-        <div className="text-sm text-slate-700">Symbols Traded *</div>
+        <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><Tags className="h-4 w-4"/> Symbols Traded *</div>
         <div className="flex flex-wrap gap-2">
           {symbols.map(s => (
-            <span key={s} className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs">
+            <span key={s} className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
               {s}
               <button type="button" onClick={()=>setSymbols(prev=>prev.filter(x=>x!==s))} className="ml-1 text-slate-500 hover:text-red-600">×</button>
             </span>
@@ -785,53 +787,10 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
         />
         <div className="text-xs text-slate-500">Press Enter or comma to add.</div>
       </div>
-
-      {/* Single trade snapshot (optional) */}
-      <div className="space-y-2">
-        <div className="text-sm font-medium text-slate-800">Trade Snapshot (optional)</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-3 items-end">
-          <label className="text-xs sm:col-span-2 md:col-span-2">
-            <span className="block mb-1 text-slate-600">Instrument</span>
-            <input value={instrument} onChange={e=>setInstrument(e.target.value)} className="input" placeholder="e.g., RELIANCE" />
-          </label>
-          <label className="text-xs">
-            <span className="block mb-1 text-slate-600">Side</span>
-            <select value={side} onChange={e=>setSide(e.target.value as any)} className="input">
-              {['Buy','Sell','Long','Short'].map(s=> <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-          <label className="text-xs">
-            <span className="block mb-1 text-slate-600">Entry</span>
-            <input type="number" step={0.01} value={entryPrice} onChange={e=>setEntryPrice(Number(e.target.value))} className="input" />
-          </label>
-          <label className="text-xs">
-            <span className="block mb-1 text-slate-600">Exit</span>
-            <input type="number" step={0.01} value={exitPrice} onChange={e=>setExitPrice(Number(e.target.value))} className="input" />
-          </label>
-          <label className="text-xs">
-            <span className="block mb-1 text-slate-600">Qty</span>
-            <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="input" />
-          </label>
-          <div className="text-xs sm:col-span-2 md:col-span-1">
-            <div className="mb-1 text-slate-600">P&L</div>
-            <div className={`px-3 py-2 rounded-xl border text-center ${pnl>=0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>{pnl.toFixed(2)}</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-          <label className="text-xs sm:col-span-2 md:col-span-2">
-            <span className="block mb-1 text-slate-600">Strategy</span>
-            <input value={strategy} onChange={e=>setStrategy(e.target.value)} className="input" placeholder="e.g., Breakout" />
-          </label>
-          <label className="text-xs sm:col-span-2 md:col-span-2">
-            <span className="block mb-1 text-slate-600">Tags</span>
-            <input value={tagsStr} onChange={e=>setTagsStr(e.target.value)} className="input" placeholder="comma separated" />
-          </label>
-        </div>
-      </div>
-
+      
       {/* Trading Result segmented */}
       <div className="space-y-2">
-        <div className="text-sm text-slate-700">Trading Result</div>
+        <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><BarChart className="h-4 w-4"/> Trading Result</div>
         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
           {[
             {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
@@ -843,18 +802,18 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
               key={b.k}
               type="button"
               onClick={()=>setResult(b.k)}
-              className={`px-4 py-2 rounded-xl border ${result===b.k ? b.bg : `bg-white ${b.cls}`}`}
+              className={`px-4 py-2 rounded-xl border ${result===b.k ? b.bg : `bg-white dark:bg-slate-800 ${b.cls}`}`}
             >
               {b.label}
             </button>
           ))}
         </div>
       </div>
-
+      
       {/* Net MTM and Brokerage */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
         <label className="block text-sm">
-          <span className="block mb-1 text-slate-700">Net MTM Amount *</span>
+          <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><IndianRupee className="h-4 w-4"/> Net MTM Amount *</span>
           <div className="relative">
             <span className="money-prefix">₹</span>
             <input type="number" step={0.01} value={netMtm} onChange={e=>setNetMtm(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
@@ -862,7 +821,7 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
           <div className="text-xs text-slate-500 mt-1">Enter the gross profit amount (before brokerage deduction)</div>
         </label>
         <label className="block text-sm">
-          <span className="block mb-1 text-slate-700">Brokerage Charges *</span>
+          <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><Wallet className="h-4 w-4"/> Brokerage Charges *</span>
           <div className="relative">
             <span className="money-prefix">₹</span>
             <input type="number" step={0.01} value={brokerage} onChange={e=>setBrokerage(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
@@ -870,37 +829,18 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
           <div className="text-xs text-slate-500 mt-1">Enter total charges including brokerage, taxes, and other fees</div>
         </label>
       </div>
-
-      {/* Strategies */}
-      <div className="space-y-2">
-        <div className="text-sm text-slate-700">Strategies Used</div>
-        <div className="flex flex-wrap gap-2">
-          {strategiesPreset.map(s => (
-            <button
-              key={s}
-              type="button"
-              onClick={()=>toggleStrategy(s)}
-              className={`px-3 py-1.5 rounded-full text-sm border ${strategies.includes(s) ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-            >{s}</button>
-          ))}
-          <div className="inline-flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <input value={customStrategy} onChange={e=>setCustomStrategy(e.target.value)} placeholder="Add custom strategy..." className="px-3 py-1.5 rounded-full border border-slate-300 text-sm flex-1" />
-            <button type="button" onClick={addCustomStrategy} className="btn-secondary text-sm">Add</button>
-          </div>
-        </div>
-      </div>
-
+      
       {/* Notes */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700">Notes (Optional)</span>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
+        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><FileText className="h-4 w-4"/> Notes (Optional)</span>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
       </label>
-
-      <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
+      
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="btn bg-slate-100 text-slate-700 subtle-hover">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600">Cancel</button>
         )}
-        <button type="submit" className="btn bg-emerald-600 text-white hover:bg-emerald-700">Add Trading Day</button>
+        <button type="submit" className="btn bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20">Add Trading Day</button>
       </div>
     </form>
   );

@@ -49,7 +49,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({
         <input
           type="text"
           className="block w-full pl-10 pr-3 py-2 rounded-lg input placeholder-slate-400 focus-ring transition-all duration-200"
-          placeholder="e.g., RELIANCE breakout ..."
+          placeholder=" RELIANCE breakout ..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);

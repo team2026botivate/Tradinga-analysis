@@ -755,6 +755,42 @@ export interface OtpVerifyResult {
   attemptsLeft?: number;
 }
 
+// ===== User Profile (LoginMaster) =====
+export interface UserProfile {
+  success: boolean;
+  email?: string;
+  userId?: string;
+  name?: string;
+  error?: string;
+}
+
+export const fetchUserProfileFromSheet = async (
+  email: string,
+  opts?: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<UserProfile> => {
+  const isDev = !!import.meta.env.DEV;
+  const url = isDev
+    ? `/gs?action=getUserProfile&email=${encodeURIComponent(email)}`
+    : `${GAS_BASE_URL}?action=getUserProfile&email=${encodeURIComponent(email)}`;
+  const res = await fetchWithTimeout(
+    url,
+    { method: 'GET' },
+    opts?.timeoutMs ?? 8000,
+    opts?.signal
+  );
+  if (!res.ok) {
+    return { success: false, error: `HTTP ${res.status}` };
+  }
+  const data = await safeJson(res);
+  return {
+    success: Boolean((data as any)?.success),
+    email: (data as any)?.email,
+    userId: (data as any)?.userId,
+    name: (data as any)?.name,
+    error: (data as any)?.error,
+  } as UserProfile;
+};
+
 export const sendOtp = async (
   email: string,
   opts?: { signal?: AbortSignal; timeoutMs?: number }
@@ -786,6 +822,54 @@ export const verifyOtp = async (
   const url = isDev
     ? `/gs?action=verifyOtp&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`
     : `${GAS_BASE_URL}?action=verifyOtp&email=${encodeURIComponent(email)}&code=${encodeURIComponent(code)}`;
+  const res = await fetchWithTimeout(
+    url,
+    { method: 'GET' },
+    opts?.timeoutMs ?? 10000,
+    opts?.signal
+  );
+  const data = await safeJson(res);
+  return {
+    success: Boolean((data as any)?.success),
+    email: (data as any)?.email,
+    name: (data as any)?.name,
+    error: (data as any)?.error,
+    attemptsLeft: (data as any)?.attemptsLeft,
+  } as OtpVerifyResult;
+};
+
+// ===== Phone-based OTP helpers (SMS) =====
+export const sendOtpPhone = async (
+  phone: string,
+  opts?: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<OtpSendResult> => {
+  const isDev = !!import.meta.env.DEV;
+  const url = isDev
+    ? `/gs?action=sendOtpPhone&phone=${encodeURIComponent(phone)}`
+    : `${GAS_BASE_URL}?action=sendOtpPhone&phone=${encodeURIComponent(phone)}`;
+  const res = await fetchWithTimeout(
+    url,
+    { method: 'GET' },
+    opts?.timeoutMs ?? 10000,
+    opts?.signal
+  );
+  const data = await safeJson(res);
+  return {
+    success: Boolean((data as any)?.success),
+    message: (data as any)?.message,
+    error: (data as any)?.error,
+  } as OtpSendResult;
+};
+
+export const verifyOtpPhone = async (
+  phone: string,
+  code: string,
+  opts?: { signal?: AbortSignal; timeoutMs?: number }
+): Promise<OtpVerifyResult> => {
+  const isDev = !!import.meta.env.DEV;
+  const url = isDev
+    ? `/gs?action=verifyOtpPhone&phone=${encodeURIComponent(phone)}&code=${encodeURIComponent(code)}`
+    : `${GAS_BASE_URL}?action=verifyOtpPhone&phone=${encodeURIComponent(phone)}&code=${encodeURIComponent(code)}`;
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },

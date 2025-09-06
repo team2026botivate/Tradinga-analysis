@@ -30,6 +30,8 @@ const Journal: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const pollCtrlRef = useRef<AbortController | null>(null);
 
+  const [lastUpdated, setLastUpdated] = useState<string>('');
+
   useEffect(() => {
     const ctrl = new AbortController();
     const loadTrades = async () => {
@@ -298,6 +300,28 @@ const Journal: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const pollInterval = 15000; // 15 seconds
+  
+    const pollData = async () => {
+      try {
+        const tradesData = await fetchTradesFromSheet();
+        setTrades(tradesData);
+        setLastUpdated(new Date().toLocaleTimeString());
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    };
+
+    // Initial fetch
+    pollData();
+  
+    // Set up interval
+    const intervalId = setInterval(pollData, pollInterval);
+  
+    return () => clearInterval(intervalId);
+  }, []);
+
   return (
     <div className="journal-page space-y-8">
       <h2 className="heading">Trade Journal</h2>
@@ -512,6 +536,10 @@ const Journal: React.FC = () => {
             <div>
               <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-200">Trade List</h3>
               <p className="text-slate-500 dark:text-slate-400 text-sm">{tradesList.length} trades</p>
+              <div className="text-xs text-slate-500 dark:text-slate-400">
+                {lastUpdated ? `Last updated: ${lastUpdated}` : 'Loading...'}
+                <span className="ml-2 inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -747,13 +775,14 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
   }, [form.side, form.entryPrice, form.exitPrice, form.quantity]);
 
   const canSave = Boolean(form.date && form.instrument);
+  const today = new Date().toISOString().slice(0,10);
 
   return (
-    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 p-4 max-h-[80vh] overflow-y-auto no-scrollbar">
+    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 p-4 max-h-[80vh] overflow-y-auto no-scrollbar bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
       {/* Date inputs - mobile optimized */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Input label="Date" type="date" value={form.date || ''} onChange={v => set('date', v)} placeholder="dd-MM-yyyy"/>
-        <Input label="Exit Date" type="date" value={form.exitDate || ''} onChange={v => set('exitDate', v)} placeholder="dd-MM-yyyy"/>
+        <Input label="Date" type="date" value={form.date || ''} onChange={v => set('date', v)} placeholder="yyyy-mm-dd" max={today} />
+        <Input label="Exit Date" type="date" value={form.exitDate || ''} onChange={v => set('exitDate', v)} placeholder="yyyy-mm-dd" min={form.date || ''} />
       </div>
 
       <div className="h-px bg-slate-200 dark:bg-slate-700" />
@@ -762,7 +791,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <label className="text-sm col-span-1">
           <span className="block mb-1 text-slate-600 dark:text-slate-400">Instrument</span>
-          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input w-full" />
+          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input w-full" placeholder="e.g., NIFTY, BANKNIFTY" />
         </label>
         <div className="col-span-1">
           <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
@@ -771,7 +800,7 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <span className="block mb-1 text-slate-600 dark:text-slate-400">Entry Price</span>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-8 w-full" />
+            <input type="number" step="0.01" min="0" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-8 w-full" placeholder="0.00" />
           </div>
         </label>
       </div>
@@ -781,12 +810,12 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
           <span className="block mb-1 text-slate-600 dark:text-slate-400">Exit Price</span>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-8 w-full" />
+            <input type="number" step="0.01" min="0" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-8 w-full" placeholder="0.00" />
           </div>
         </label>
         <label className="text-sm col-span-1">
           <span className="block mb-1 text-slate-600 dark:text-slate-400">Quantity</span>
-          <input type="number" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input w-full" />
+          <input type="number" min="1" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input w-full" placeholder="1" />
         </label>
         <div className="text-sm col-span-1">
           <div className="block mb-1 text-slate-600 dark:text-slate-400">P&L</div>
@@ -1217,12 +1246,28 @@ function monthName(m: number) {
   return ['January','February','March','April','May','June','July','August','September','October','November','December'][m] || '';
 }
 
-const Input: React.FC<{ label: string; value: string; onChange: (v: string) => void; type?: string }>
-  = ({ label, value, onChange, type = 'text' }) => (
+const Input: React.FC<{ 
+  label: string; 
+  value: string; 
+  onChange: (v: string) => void; 
+  type?: string;
+  placeholder?: string;
+  min?: string | number;
+  max?: string | number;
+  step?: string | number;
+}> = ({ label, value, onChange, type = 'text', placeholder, min, max, step }) => (
   <label className="text-sm">
     <span className="block mb-1 text-slate-600 dark:text-slate-400">{label}</span>
-    <input type={type} value={value} onChange={e => onChange(e.target.value)}
-      className="input w-full" />
+    <input 
+      type={type} 
+      value={value} 
+      onChange={e => onChange(e.target.value)} 
+      className="input w-full" 
+      placeholder={placeholder}
+      min={min as any}
+      max={max as any}
+      step={step as any}
+    />
   </label>
 );
 

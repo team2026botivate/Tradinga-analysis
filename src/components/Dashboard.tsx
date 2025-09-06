@@ -7,13 +7,30 @@ import {
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
-import { fetchTopProfitFromSheet, type TopProfit, fetchTradingDayStats, fetchPortfolioStats, type PortfolioStats } from '../lib/sheets';
+import { fetchTopProfitFromSheet, type TopProfit, fetchTradingDayStats, fetchPortfolioStats, type PortfolioStats, fetchUserProfileFromSheet } from '../lib/sheets';
 
 const Dashboard: React.FC = () => {
   const [userName, setUserName] = useState<string>('');
   useEffect(() => {
     const name = sessionStorage.getItem('auth_name') || '';
-    setUserName(name);
+    const email = sessionStorage.getItem('auth_email') || '';
+    if (name) {
+      setUserName(name);
+      return;
+    }
+    if (email) {
+      // Fetch from Google Script LoginMaster (Column C)
+      fetchUserProfileFromSheet(email)
+        .then((res) => {
+          if (res?.success && res.name) {
+            setUserName(res.name);
+            sessionStorage.setItem('auth_name', res.name);
+          }
+        })
+        .catch((e) => {
+          console.warn('[Dashboard] fetchUserProfile failed', e);
+        });
+    }
   }, []);
   const marketIndices = [
     { name: 'NIFTY 50', value: '24,015.30', change: '+85.10', percentage: '+0.36%', trend: 'up' },
