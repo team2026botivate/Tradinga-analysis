@@ -20,8 +20,8 @@ const SPREADSHEET_ID: string = SPREADSHEET_ID_ENV || DEFAULT_SPREADSHEET_ID;
 const TRADES_SHEET_NAME_ENV: string | undefined = (import.meta as any).env?.VITE_GS_TRADES_SHEET;
 const DEFAULT_TRADES_SHEET: string = TRADES_SHEET_NAME_ENV || 'All Record';
 
-if (!GAS_URL_ENV) console.warn(`[Sheets Sync] Using ${IS_DEV ? 'dev proxy /gs' : 'fallback GAS_URL'}. Set VITE_GAS_URL in .env.local to override.`);
-if (!SPREADSHEET_ID_ENV) console.warn('[Sheets Sync] Using fallback Spreadsheet ID. Set VITE_GS_SHEET_ID in .env.local to override.');
+if (IS_DEV && !GAS_URL_ENV) console.warn(`[Sheets Sync] Using ${IS_DEV ? 'dev proxy /gs' : 'fallback GAS_URL'}. Set VITE_GAS_URL in .env.local to override.`);
+if (IS_DEV && !SPREADSHEET_ID_ENV) console.warn('[Sheets Sync] Using fallback Spreadsheet ID. Set VITE_GS_SHEET_ID in .env.local to override.');
 
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 7000, externalSignal?: AbortSignal): Promise<Response> {
   const ctrl = new AbortController();
