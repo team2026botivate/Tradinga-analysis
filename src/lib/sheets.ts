@@ -322,8 +322,6 @@ export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeou
     ? data.rows
     : null;
 
-  if (isDev) console.log('[Sheets] Trades fetched:', Array.isArray(arr) ? arr.length : 'n/a');
-
   if (!arr) {
     if (isDev) console.error('[Sheets] Unexpected response shape, expected array', data);
     throw new Error('Invalid response shape from Sheets (expected an array)');
@@ -761,6 +759,7 @@ export interface UserProfile {
   email?: string;
   userId?: string;
   name?: string;
+  bio?: string;
   error?: string;
 }
 
@@ -787,6 +786,7 @@ export const fetchUserProfileFromSheet = async (
     email: (data as any)?.email,
     userId: (data as any)?.userId,
     name: (data as any)?.name,
+    bio: (data as any)?.bio,
     error: (data as any)?.error,
   } as UserProfile;
 };
@@ -958,3 +958,146 @@ export const verifyLogin = async (
     error: (data as any)?.error,
   };
 };
+
+export async function updatePassword(email: string, newPassword: string): Promise<{success: boolean, error?: string}> {
+  const isDev = !!import.meta.env.DEV;
+  try {
+    if (isDev) console.log('[Password] Updating password for:', email);
+
+    const response = await fetchWithTimeout(`${GAS_BASE_URL}?action=updatePassword&email=${encodeURIComponent(email)}&newPassword=${encodeURIComponent(newPassword)}`, {
+      method: 'GET'
+    }, 10000); // 10 second timeout
+
+    if (!response.ok) {
+      const errorText = await safeText(response);
+      if (isDev) console.error('[Password] Update failed:', response.status, errorText);
+
+      // Check if response is HTML (indicates backend error)
+      if (errorText.includes('<!doctype') || errorText.includes('<html')) {
+        return {
+          success: false,
+          error: 'Google Apps Script backend error. Please check if the updatePassword action exists in your Google Apps Script.'
+        };
+      }
+
+      return {
+        success: false,
+        error: `Failed to update password: HTTP ${response.status}`
+      };
+    }
+
+    const data = await safeJson(response);
+
+    if (isDev) console.log('[Password] Update response:', data);
+
+    // Validate response structure
+    if (typeof data === 'object' && data !== null) {
+      // Check if response is empty object
+      if (Object.keys(data).length === 0) {
+        if (isDev) console.warn('[Password] Received empty response from Google Apps Script');
+        return {
+          success: false,
+          error: 'Google Apps Script returned empty response. Please check if the updatePassword action is properly implemented in your Google Apps Script.'
+        };
+      }
+
+      // Check if response has the expected success field
+      if ('success' in data) {
+        return {
+          success: Boolean(data.success),
+          error: data.error || (data.success ? undefined : 'Unknown error occurred')
+        };
+      } else {
+        if (isDev) console.warn('[Password] Response missing success field:', data);
+        return {
+          success: false,
+          error: 'Google Apps Script response missing required fields. Expected {success: boolean, error?: string}.'
+        };
+      }
+    } else {
+      if (isDev) console.warn('[Password] Invalid response type:', typeof data, data);
+      return {
+        success: false,
+        error: 'Invalid response from server - expected JSON object'
+      };
+    }
+  } catch (error) {
+    if (isDev) console.error('[Password] Update error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? `Network error: ${error.message}` : 'Failed to update password'
+    };
+  }
+}
+
+export async function getPassword(email: string): Promise<{success: boolean, password?: string, error?: string}> {
+  const isDev = !!import.meta.env.DEV;
+  try {
+    if (isDev) console.log('[Password] Fetching password for:', email);
+
+    const response = await fetchWithTimeout(`${GAS_BASE_URL}?action=getPassword&email=${encodeURIComponent(email)}`, {
+      method: 'GET'
+    }, 8000); // 8 second timeout
+
+    if (!response.ok) {
+      const errorText = await safeText(response);
+      if (isDev) console.error('[Password] Fetch failed:', response.status, errorText);
+
+      // Check if response is HTML (indicates backend error)
+      if (errorText.includes('<!doctype') || errorText.includes('<html')) {
+        return {
+          success: false,
+          error: 'Google Apps Script backend error. Please check if the getPassword action exists in your Google Apps Script.'
+        };
+      }
+
+      return {
+        success: false,
+        error: `Failed to fetch password: HTTP ${response.status}`
+      };
+    }
+
+    const data = await safeJson(response);
+
+    if (isDev) console.log('[Password] Fetch response:', data);
+
+    // Validate response structure
+    if (typeof data === 'object' && data !== null) {
+      // Check if response is empty object
+      if (Object.keys(data).length === 0) {
+        if (isDev) console.warn('[Password] Received empty response from Google Apps Script');
+        return {
+          success: false,
+          error: 'Google Apps Script returned empty response. Please check if the getPassword action is properly implemented in your Google Apps Script.'
+        };
+      }
+
+      // Check if response has the expected success field
+      if ('success' in data) {
+        return {
+          success: Boolean(data.success),
+          password: data.password,
+          error: data.error || (data.success ? undefined : 'Unknown error occurred')
+        };
+      } else {
+        if (isDev) console.warn('[Password] Response missing success field:', data);
+        return {
+          success: false,
+          error: 'Google Apps Script response missing required fields. Expected {success: boolean, password?: string, error?: string}.'
+        };
+      }
+    } else {
+      if (isDev) console.warn('[Password] Invalid response type:', typeof data, data);
+      return {
+        success: false,
+        error: 'Invalid response from server - expected JSON object'
+      };
+    }
+  } catch (error) {
+    if (isDev) console.error('[Password] Fetch error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? `Network error: ${error.message}` : 'Failed to fetch password'
+    };
+  }
+}

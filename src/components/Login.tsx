@@ -93,19 +93,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 p-6">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800 p-4 sm:p-6">
+      <div className="w-full max-w-md px-4">
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/20 dark:border-slate-700/50 rounded-3xl shadow-2xl overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-indigo-500/5 to-purple-500/5 animate-pulse"></div>
-          <div className="relative p-8">
-            <div className="mb-8 text-center">
-              <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg ring-4 ring-blue-100 dark:ring-blue-900/30">
-                <LogIn className="h-8 w-8 text-white" />
+          <div className="relative p-6 sm:p-8">
+            <div className="mb-6 text-center">
+              <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg ring-4 ring-blue-100 dark:ring-blue-900/30">
+                <LogIn className="h-7 w-7 text-white" />
               </div>
-              <h1 className="mt-6 text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 dark:from-slate-100 dark:via-blue-100 dark:to-indigo-100 bg-clip-text text-transparent">
+              <h1 className="mt-4 text-2xl sm:text-3xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 dark:from-slate-100 dark:via-blue-100 dark:to-indigo-100 bg-clip-text text-transparent">
                 Welcome back{name ? `, ${name}` : ''}
               </h1>
-              <p className="text-slate-600 dark:text-slate-400 font-medium">Sign in to continue to your trading dashboard</p>
+              <p className="text-slate-600 dark:text-slate-400 font-medium text-sm sm:text-base">Sign in to continue to your trading dashboard</p>
             </div>
 
             <form onSubmit={handleVerify} className="space-y-5" autoComplete="on">
@@ -121,7 +120,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     autoComplete="email"
-                    className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/80 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md"
+                    className="w-full pl-12 pr-4 py-3 sm:py-4 text-sm sm:text-base rounded-2xl bg-white/80 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md"
                   />
                 </div>
               </div>
@@ -140,7 +139,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       value={code}
                       onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="Enter 6-digit code"
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl bg-white/80 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md tracking-widest text-center text-2xl font-bold"
+                      className="w-full pl-12 pr-4 py-3 sm:py-4 text-sm sm:text-base rounded-2xl bg-white/80 dark:bg-slate-800/80 border-2 border-slate-200 dark:border-slate-600 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 shadow-sm hover:shadow-md tracking-widest text-center text-2xl font-bold"
                     />
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
@@ -198,7 +197,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   type="button"
                   disabled={loading}
                   onClick={handleSend}
-                  className="w-full inline-flex items-center justify-center gap-3 py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-70 text-white font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
+                  className="w-full inline-flex items-center justify-center gap-3 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-70 text-white font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">
@@ -216,7 +215,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full inline-flex items-center justify-center gap-3 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:via-teal-700 hover:to-cyan-700 disabled:opacity-70 text-white font-bold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
+                  className="w-full inline-flex items-center justify-center gap-3 py-3 sm:py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:via-teal-700 hover:to-cyan-700 disabled:opacity-70 text-white font-bold shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-[1.02] disabled:transform-none"
                 >
                   {loading ? (
                     <div className="flex items-center gap-2">

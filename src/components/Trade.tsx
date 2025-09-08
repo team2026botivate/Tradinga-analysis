@@ -752,29 +752,29 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
   };
 
   return (
-    <form onSubmit={submit} className="space-y-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-      <div className="text-xl font-bold text-slate-900 dark:text-white mb-4">Add Trading Day</div>
-      
+    <form onSubmit={submit} className="space-y-4 sm:space-y-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-full overflow-hidden">
+      <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-3 sm:mb-4">Add Trading Day</div>
+
       {/* Date */}
       <label className="block text-sm">
         <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><CalendarDays className="h-4 w-4"/> Trading Date *</span>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input" />
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input w-full" />
       </label>
-      
+
       {/* Number of trades */}
       <label className="block text-sm">
         <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><ListOrdered className="h-4 w-4"/> Number of Trades</span>
-        <input type="number" value={tradesCount} onChange={e=>setTradesCount(Number(e.target.value))} className="input" />
+        <input type="number" value={tradesCount} onChange={e=>setTradesCount(Number(e.target.value))} className="input w-full" />
       </label>
-      
+
       {/* Symbols tag input */}
       <div className="space-y-2">
         <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><Tags className="h-4 w-4"/> Symbols Traded *</div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           {symbols.map(s => (
-            <span key={s} className="px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
+            <span key={s} className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
               {s}
-              <button type="button" onClick={()=>setSymbols(prev=>prev.filter(x=>x!==s))} className="ml-1 text-slate-500 hover:text-red-600">×</button>
+              <button type="button" onClick={()=>setSymbols(prev=>prev.filter(x=>x!==s))} className="ml-1 text-slate-500 hover:text-red-600 text-sm">×</button>
             </span>
           ))}
         </div>
@@ -783,15 +783,15 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
           onChange={e=>setSymInput(e.target.value)}
           onKeyDown={onSymKey}
           placeholder="Type symbol name (e.g., TCS, GOLD)..."
-          className="input"
+          className="input w-full"
         />
         <div className="text-xs text-slate-500">Press Enter or comma to add.</div>
       </div>
-      
+
       {/* Trading Result segmented */}
       <div className="space-y-2">
         <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><BarChart className="h-4 w-4"/> Trading Result</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {[
             {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
             {k:'loss', label:'Loss', cls:'border-red-600 text-red-700', bg:'bg-red-600 text-white'},
@@ -802,16 +802,16 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
               key={b.k}
               type="button"
               onClick={()=>setResult(b.k)}
-              className={`px-4 py-2 rounded-xl border ${result===b.k ? b.bg : `bg-white dark:bg-slate-800 ${b.cls}`}`}
+              className={`px-3 py-2 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl border text-xs sm:text-sm font-medium transition-colors ${result===b.k ? b.bg : `bg-white dark:bg-slate-800 ${b.cls}`}`}
             >
               {b.label}
             </button>
           ))}
         </div>
       </div>
-      
+
       {/* Net MTM and Brokerage */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <label className="block text-sm">
           <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><IndianRupee className="h-4 w-4"/> Net MTM Amount *</span>
           <div className="relative">
@@ -829,18 +829,22 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
           <div className="text-xs text-slate-500 mt-1">Enter total charges including brokerage, taxes, and other fees</div>
         </label>
       </div>
-      
+
       {/* Notes */}
       <label className="block text-sm">
         <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><FileText className="h-4 w-4"/> Notes (Optional)</span>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={4} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
       </label>
-      
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
+
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-slate-200 dark:border-slate-700">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="btn bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600">Cancel</button>
+          <button type="button" onClick={onCancel} className="btn bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 w-full sm:w-auto">
+            Cancel
+          </button>
         )}
-        <button type="submit" className="btn bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20">Add Trading Day</button>
+        <button type="submit" className="btn bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20 w-full sm:w-auto">
+          Add Trading Day
+        </button>
       </div>
     </form>
   );

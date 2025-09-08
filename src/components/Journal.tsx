@@ -694,8 +694,42 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
   });
   const [fileName, setFileName] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  const set = (k: keyof Trade, v: any) => setForm(s => ({ ...s, [k]: v }));
+  const set = (k: keyof Trade, v: any) => {
+    setForm(s => ({ ...s, [k]: v }));
+    // Clear error when user starts typing
+    if (formErrors[k]) {
+      setFormErrors(prev => ({ ...prev, [k]: '' }));
+    }
+  };
+
+  const validateField = (key: string, value: any): string => {
+    switch (key) {
+      case 'date':
+        return !value ? 'Date is required' : '';
+      case 'instrument':
+        return !value?.trim() ? 'Instrument is required' : '';
+      case 'entryPrice':
+        return value <= 0 ? 'Entry price must be greater than 0' : '';
+      case 'exitPrice':
+        return value <= 0 ? 'Exit price must be greater than 0' : '';
+      case 'quantity':
+        return value <= 0 ? 'Quantity must be greater than 0' : '';
+      default:
+        return '';
+    }
+  };
+
+  const handleFieldBlur = (key: string) => {
+    setTouched(prev => ({ ...prev, [key]: true }));
+    const value = (form as any)[key];
+    const error = validateField(key, value);
+    if (error) {
+      setFormErrors(prev => ({ ...prev, [key]: error }));
+    }
+  };
 
   // Pre-fill form with P&L data if provided
   useEffect(() => {
@@ -778,108 +812,312 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
   const today = new Date().toISOString().slice(0,10);
 
   return (
-    <form id="trade-form" onSubmit={submit} className="grid grid-cols-1 gap-4 p-4 max-h-[80vh] overflow-y-auto no-scrollbar bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-      {/* Date inputs - mobile optimized */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Input label="Date" type="date" value={form.date || ''} onChange={v => set('date', v)} placeholder="yyyy-mm-dd" max={today} />
-        <Input label="Exit Date" type="date" value={form.exitDate || ''} onChange={v => set('exitDate', v)} placeholder="yyyy-mm-dd" min={form.date || ''} />
+    <form id="trade-form" onSubmit={submit} className="space-y-4 sm:space-y-6 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 lg:p-8 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-full overflow-auto max-h-[80vh] relative" style={{
+      scrollbarWidth: 'none', // Firefox
+      msOverflowStyle: 'none', // IE/Edge
+      WebkitScrollbar: {
+        width: '0px',
+        background: 'transparent'
+      }
+    } as React.CSSProperties}>
+      {/* Close Button - Top Right */}
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100 transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          aria-label="Close form"
+          title="Close form"
+        >
+          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+
+      {/* Header Section */}
+      <div className="text-center sm:text-left">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2">Add New Trade</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">Record your trading activity with detailed analytics</p>
       </div>
 
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+      {/* Date inputs - Enhanced mobile layout */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Entry Date <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={form.date || ''}
+              onChange={e => set('date', e.target.value)}
+              onBlur={() => handleFieldBlur('date')}
+              max={today}
+              className={`w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                formErrors.date && touched.date
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+              required
+            />
+            {formErrors.date && touched.date && (
+              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.date}</p>
+            )}
+          </div>
 
-      {/* Trade details - stacked on mobile, grid on desktop */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Instrument</span>
-          <input value={form.instrument || ''} onChange={e=>set('instrument', e.target.value)} className="input w-full" placeholder="e.g., NIFTY, BANKNIFTY" />
-        </label>
-        <div className="col-span-1">
-          <Select label="Side" value={String(form.side || 'Buy')} onChange={v => set('side', v)} options={[{label:'Buy',value:'Buy'},{label:'Sell',value:'Sell'},{label:'Long',value:'Long'},{label:'Short',value:'Short'}]} />
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Exit Date
+            </label>
+            <input
+              type="date"
+              value={form.exitDate || ''}
+              onChange={e => set('exitDate', e.target.value)}
+              min={form.date || ''}
+              className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+            />
+          </div>
         </div>
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Entry Price</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" min="0" value={String(form.entryPrice ?? '')} onChange={e=>set('entryPrice', e.target.value)} className="input pl-8 w-full" placeholder="0.00" />
-          </div>
-        </label>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Exit Price</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" min="0" value={String(form.exitPrice ?? '')} onChange={e=>set('exitPrice', e.target.value)} className="input pl-8 w-full" placeholder="0.00" />
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent" />
+
+      {/* Trade details - Enhanced mobile grid */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+          Trade Details
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Instrument <span className="text-red-500">*</span>
+            </label>
+            <input
+              value={form.instrument || ''}
+              onChange={e => set('instrument', e.target.value)}
+              onBlur={() => handleFieldBlur('instrument')}
+              className={`w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                formErrors.instrument && touched.instrument
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+              placeholder="e.g., NIFTY, RELIANCE"
+            />
+            {formErrors.instrument && touched.instrument && (
+              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.instrument}</p>
+            )}
           </div>
-        </label>
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Quantity</span>
-          <input type="number" min="1" value={String(form.quantity ?? '')} onChange={e=>set('quantity', e.target.value)} className="input w-full" placeholder="1" />
-        </label>
-        <div className="text-sm col-span-1">
-          <div className="block mb-1 text-slate-600 dark:text-slate-400">P&L</div>
-          <div className={`px-3 py-2.5 rounded-lg border text-center font-semibold ${pnl>=0 ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'}`}>
-            {pnl>=0 ? '+' : ''}₹{Math.abs(pnl).toFixed(2)}
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Side <span className="text-red-500">*</span>
+            </label>
+            <Select
+              label=""
+              value={String(form.side || 'Buy')}
+              onChange={v => set('side', v)}
+              options={[
+                {label:'Buy',value:'Buy'},
+                {label:'Sell',value:'Sell'},
+                {label:'Long',value:'Long'},
+                {label:'Short',value:'Short'}
+              ]}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Entry Price <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={String(form.entryPrice ?? '')}
+                onChange={e => set('entryPrice', e.target.value)}
+                onBlur={() => handleFieldBlur('entryPrice')}
+                className={`w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                  formErrors.entryPrice && touched.entryPrice
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+                }`}
+                placeholder="0.00"
+              />
+            </div>
+            {formErrors.entryPrice && touched.entryPrice && (
+              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.entryPrice}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Exit Price <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={String(form.exitPrice ?? '')}
+                onChange={e => set('exitPrice', e.target.value)}
+                onBlur={() => handleFieldBlur('exitPrice')}
+                className={`w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                  formErrors.exitPrice && touched.exitPrice
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+                }`}
+                placeholder="0.00"
+              />
+            </div>
+            {formErrors.exitPrice && touched.exitPrice && (
+              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.exitPrice}</p>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Quantity <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={String(form.quantity ?? '')}
+              onChange={e => set('quantity', e.target.value)}
+              onBlur={() => handleFieldBlur('quantity')}
+              className={`w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                formErrors.quantity && touched.quantity
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+              }`}
+              placeholder="1"
+            />
+            {formErrors.quantity && touched.quantity && (
+              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.quantity}</p>
+            )}
+          </div>
+
+          {/* P&L Display - Enhanced */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Projected P&L
+            </label>
+            <div className={`px-3 py-2.5 sm:py-3 rounded-lg border text-center font-semibold text-sm sm:text-base transition-colors ${
+              pnl >= 0
+                ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400'
+            }`}>
+              {pnl >= 0 ? '+' : ''}₹{Math.abs(pnl).toFixed(2)}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+              {pnl >= 0 ? 'Profit' : 'Loss'}
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
+      {/* Strategy & Tags - Enhanced mobile layout */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+          Strategy & Tags
+        </h3>
 
-      {/* Strategy & Tags */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Strategy</span>
-          <input value={form.strategy || ''} onChange={e=>set('strategy', e.target.value)} className="input w-full" placeholder="Enter strategy" />
-        </label>
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Tags</span>
-          <input value={(form.tags || []).join(', ')} onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))} className="input w-full" placeholder="comma separated" onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              const cur = (form.tags || []);
-              const input = (e.target as HTMLInputElement).value.trim();
-              if (input) set('tags', Array.from(new Set([...cur, ...input.split(',').map(s=>s.trim()).filter(Boolean)])));
-            }
-          }} />
-          {(form.tags && form.tags.length>0) && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {form.tags.map((t, i) => (
-                <span key={`${t}-${i}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
-                  {t}
-                  <button type="button" onClick={() => set('tags', (form.tags||[]).filter(x => x!==t))} className="ml-1 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">×</button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Strategy
+            </label>
+            <input
+              value={form.strategy || ''}
+              onChange={e => set('strategy', e.target.value)}
+              className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+              placeholder="e.g., Breakout, Trend Following"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Tags
+            </label>
+            <input
+              value={(form.tags || []).join(', ')}
+              onChange={e => set('tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const cur = (form.tags || []);
+                  const input = (e.target as HTMLInputElement).value.trim();
+                  if (input) set('tags', Array.from(new Set([...cur, ...input.split(',').map(s=>s.trim()).filter(Boolean)])));
+                }
+              }}
+              className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+              placeholder="e.g., momentum, technical"
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400">Press Enter or comma to add tags</p>
+          </div>
+        </div>
+
+        {/* Tag Display */}
+        {(form.tags && form.tags.length > 0) && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Active Tags:</p>
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {form.tags.map((tag, i) => (
+                <span key={`${tag}-${i}`} className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700">
+                  {tag}
+                  <button
+                    type="button"
+                    onClick={() => set('tags', (form.tags||[]).filter(x => x!==tag))}
+                    className="ml-1 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200 text-sm"
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
             </div>
-          )}
-        </label>
-        {/* Notes moved to its own section below */}
+          </div>
+        )}
       </div>
 
-      {/* Quick pick strategy chips */}
-      <div className="flex flex-wrap gap-2 px-1">
-        {strategiesPreset.map(str => (
-          <button
-            type="button"
-            key={str}
-            onClick={() => set('strategy', str)}
-            className={`px-3 py-1.5 rounded-full border text-xs sm:text-sm transition-all ${form.strategy===str ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-          >
-            {str}
-          </button>
-        ))}
-      </div>
-      <div className="hidden">
-        {/* Removed custom strategy input to simplify mobile UI */}
-      </div>
-
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
-
-      {/* Trading Result */}
+      {/* Quick Strategy Selection */}
       <div className="space-y-3">
-        <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Trading Result</div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">Quick Strategy Selection:</h4>
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          {strategiesPreset.map(str => (
+            <button
+              type="button"
+              key={str}
+              onClick={() => set('strategy', str)}
+              className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg border text-xs sm:text-sm font-medium transition-all ${
+                form.strategy === str
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              {str}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent" />
+
+      {/* Trading Result - Enhanced mobile layout */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+          Trading Result
+        </h3>
+
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {["profit","loss","open","breakeven"].map(mode => {
             const active = (mode==="profit" && pnl>0) || (mode==="loss" && pnl<0);
             let cls = "";
@@ -914,7 +1152,9 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
                 type="button"
                 key={mode}
                 onClick={onClick}
-                className={`px-3 py-2.5 rounded-lg border font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 ${cls}`}
+                className={`px-2 sm:px-3 py-2.5 sm:py-3 rounded-lg border font-medium transition-all focus:outline-none focus:ring-2 focus:ring-offset-1 text-xs sm:text-sm ${
+                  cls
+                }`}
               >
                 {label}
               </button>
@@ -923,71 +1163,167 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
         </div>
       </div>
 
-      {/* Risk management */}
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Risk Management</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Stop-Loss</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.stopLoss ?? '')} onChange={e => set('stopLoss', e.target.value)} className="input pl-8 w-full" />
+      {/* Risk Management - Enhanced mobile layout */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+          Risk Management
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Stop Loss
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                value={String(form.stopLoss ?? '')}
+                onChange={e => set('stopLoss', e.target.value)}
+                className="w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                placeholder="0.00"
+              />
+            </div>
           </div>
-        </label>
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Take-Profit</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.takeProfit ?? '')} onChange={e => set('takeProfit', e.target.value)} className="input pl-8 w-full" />
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Take Profit
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                value={String(form.takeProfit ?? '')}
+                onChange={e => set('takeProfit', e.target.value)}
+                className="w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                placeholder="0.00"
+              />
+            </div>
           </div>
-        </label>
-        <label className="text-sm col-span-1">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Risk (₹)</span>
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 select-none">₹</span>
-            <input type="number" step="0.01" value={String(form.riskAmount ?? '')} onChange={e => set('riskAmount', e.target.value)} className="input pl-8 w-full" />
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Risk Amount (₹)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">₹</span>
+              <input
+                type="number"
+                step="0.01"
+                value={String(form.riskAmount ?? '')}
+                onChange={e => set('riskAmount', e.target.value)}
+                className="w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                placeholder="0.00"
+              />
+            </div>
           </div>
-        </label>
-        <Input label="Risk (%)" type="number" value={String(form.riskPercent ?? '')} onChange={v => set('riskPercent', v)} />
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Risk Percent (%)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 select-none text-sm sm:text-base">%</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={String(form.riskPercent ?? '')}
+                onChange={e => set('riskPercent', e.target.value)}
+                className="w-full pl-8 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* RR Metrics Display */}
+        <RRMetrics
+          entry={Number(form.entryPrice)||0}
+          sl={form.stopLoss==null?undefined:Number(form.stopLoss)}
+          tp={form.takeProfit==null?undefined:Number(form.takeProfit)}
+          side={String(form.side||'Buy') as any}
+          qty={Number(form.quantity)||0}
+        />
       </div>
 
-      {/* RR metrics */}
-      <RRMetrics entry={Number(form.entryPrice)||0} sl={form.stopLoss==null?undefined:Number(form.stopLoss)} tp={form.takeProfit==null?undefined:Number(form.takeProfit)} side={String(form.side||'Buy') as any} qty={Number(form.quantity)||0} />
+      <div className="h-px bg-gradient-to-r from-transparent via-slate-300 dark:via-slate-600 to-transparent" />
 
-      {/* Notes */}
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
-   
-      <div className="grid grid-cols-1 gap-3">
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Notes</span>
-          <textarea value={form.notes || ''} onChange={e => set('notes', e.target.value)} className="input w-full" rows={3} placeholder="Add observations, emotions, learnings..." />
-        </label>
+      {/* Notes & Attachments - Enhanced mobile layout */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+          Additional Details
+        </h3>
+
+        <div className="grid grid-cols-1 gap-3 sm:gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Notes
+            </label>
+            <textarea
+              value={form.notes || ''}
+              onChange={e => set('notes', e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base resize-none"
+              placeholder="Add observations, emotions, learnings..."
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Screenshot (Optional)
+            </label>
+            <input
+              type="file"
+              onChange={e => setFileName(e.target.files?.[0]?.name || '')}
+              className="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300 file:transition-colors"
+              accept="image/*"
+            />
+            {fileName && (
+              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                <span className="w-4 h-4 bg-blue-100 dark:bg-blue-900/20 rounded flex items-center justify-center">
+                  📎
+                </span>
+                Selected: {fileName}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Attachments */}
-      <div className="h-px bg-slate-200 dark:bg-slate-700" />
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-300">Attachments</div>
-      <div className="grid grid-cols-1 gap-3">
-        <label className="text-sm">
-          <span className="block mb-1 text-slate-600 dark:text-slate-400">Screenshot (optional)</span>
-          <input type="file" onChange={e => setFileName(e.target.files?.[0]?.name || '')} className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-slate-700 dark:file:text-slate-300" />
-          {fileName && <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Selected: {fileName}</div>}
-        </label>
-      </div>
-
-      {/* Action buttons - sticky at bottom on mobile */}
-      <div className="flex flex-col sm:flex-row gap-2 pt-4 sticky bottom-0 bg-white dark:bg-slate-900 -mx-4 px-4 pb-4 border-t border-slate-200 dark:border-slate-700 mt-4">
+      {/* Enhanced Action Buttons - Mobile optimized */}
+      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 sm:pt-6 border-t border-slate-200 dark:border-slate-700 mt-6">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="flex-1 sm:flex-none px-6 py-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 sm:flex-none px-4 sm:px-6 py-3 sm:py-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium text-sm sm:text-base"
+          >
             Cancel
           </button>
         )}
         <button
           type="submit"
           disabled={!canSave || saving}
-          className="flex-1 sm:flex-none px-6 py-3 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-medium shadow-sm"
+          className="flex-1 sm:flex-none px-4 sm:px-6 py-3 sm:py-3 rounded-lg text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-400 disabled:to-slate-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/25 font-medium text-sm sm:text-base"
         >
-          {saving ? 'Saving…' : 'Save Trade'}
+          {saving ? (
+            <div className="flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              Saving Trade...
+            </div>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              <span>💾</span>
+              Save Trade
+            </div>
+          )}
         </button>
       </div>
     </form>

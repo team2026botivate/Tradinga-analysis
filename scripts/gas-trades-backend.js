@@ -147,6 +147,55 @@ function verifyLogin_(email, code) {
       } catch {}
       return json_(getUserProfile_(String(p.email || '')));
     }
+    if (p.action === 'updatePassword') {
+      try {
+        const email = String(p.email || '').trim();
+        const newPassword = String(p.newPassword || '').trim();
+        
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          return json_({ success: false, error: 'Invalid email' });
+        }
+        
+        if (!newPassword) {
+          return json_({ success: false, error: 'Password cannot be empty' });
+        }
+        
+        const sh = getLoginMasterSheet_();
+        const row = findGmailRow_(sh, email);
+        
+        if (row === -1) {
+          return json_({ success: false, error: 'Email not found' });
+        }
+        
+        // Update password in column E (index 4)
+        sh.getRange(row, 5).setValue(newPassword);
+        return json_({ success: true, message: 'Password updated' });
+      } catch (e) {
+        return json_({ success: false, error: String(e) });
+      }
+    }
+    if (p.action === 'getPassword') {
+      try {
+        const email = String(p.email || '').trim();
+        
+        if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+          return json_({ success: false, error: 'Invalid email' });
+        }
+        
+        const sh = getLoginMasterSheet_();
+        const row = findGmailRow_(sh, email);
+        
+        if (row === -1) {
+          return json_({ success: false, error: 'Email not found' });
+        }
+        
+        // Get password from column E (index 4)
+        const password = String(sh.getRange(row, 5).getValue() || '');
+        return json_({ success: true, password });
+      } catch (e) {
+        return json_({ success: false, error: String(e) });
+      }
+    }
     if (p.sheet && (p.action === 'fetch' || !p.action)) {
       // Optional legacy fetch you shared; returns 2D array
       return fetchSheetData(p.sheet);
@@ -210,15 +259,15 @@ function getUserProfile_(gmail) {
   try {
     var sh = getLoginMasterSheet_();
     var row = findGmailRow_(sh, gmail);
-    if (row === -1) {
-      return { success: false, error: 'User not found' };
-    }
-    // Sheet headers (A-F): Serial No | User ID | Name | Gmail | Password | OTP
-    var userId = String(sh.getRange(row, 2).getValue() || ''); // Column B
-    var name = String(sh.getRange(row, 3).getValue() || '');   // Column C
-    var email = String(sh.getRange(row, 4).getValue() || '');  // Column D
-    return { success: true, email: email, userId: userId, name: name };
+    if (!row) return { success: false, error: 'User not found' };
+    return {
+      success: true,
+      email: gmail,
+      name: sh.getRange(row, 3).getValue(),
+      bio: sh.getRange(row, 7).getValue() || '' // Column G for bio
+    };
   } catch (e) {
+    console.error(e);
     return { success: false, error: String(e) };
   }
 }
@@ -1130,7 +1179,7 @@ function sendOtp_(email) {
       var masked = email ? email.replace(/(^.).*(@.*$)/, '$1***$2') : '';
       console.log('[sendOtp_] Start for', masked);
     } catch {}
-
+    
     var cache = CacheService.getScriptCache();
     var metaKey = 'otp_meta:' + email.toLowerCase();
 
@@ -1143,20 +1192,17 @@ function sendOtp_(email) {
       return { success: false, error: 'Please wait before requesting another code' };
     }
 
-    // Generate a 6-digit code
-    var code = ('' + Math.floor(100000 + Math.random() * 900000));
-
-    // Persist OTP to LoginMaster sheet (Column F) for the matching Gmail
+    // Allowlist enforcement: only emails present in LoginMaster (Gmail column) may request OTP
     var sh = getLoginMasterSheet_();
     var row = findGmailRow_(sh, email);
     if (row === -1) {
-      // Append new user with generated User ID and next Serial No
-      var nextRow = sh.getLastRow() + 1;
-      var serial = Math.max(1, nextRow - 1);
-      var userId = Utilities.getUuid();
-      // Columns: A Serial No | B User ID | C Name | D Gmail | E Password | F OTP
-      sh.appendRow([serial, userId, '', email, '', code]);
+      try { console.warn('[sendOtp_] Blocked non-allowed email', (email || '').replace(/(^.).*(@.*$)/, '$1***$2')); } catch {}
+      return { success: false, error: 'Email not allowed' };
     } else {
+      // Generate a 6-digit code
+      var code = ('' + Math.floor(100000 + Math.random() * 900000));
+
+      // Persist OTP to LoginMaster sheet (Column F)
       sh.getRange(row, 6).setValue(code); // Col F: OTP
     }
 
@@ -1202,33 +1248,60 @@ function sendOtp_(email) {
 
 function verifyOtp_(email, code) {
   try {
-    email = String(email || '').trim();
+    email = String(email || '').trim().toLowerCase();
     code = String(code || '').trim();
+    
+    // Debug log masked email
     try {
       var masked = email ? email.replace(/(^.).*(@.*$)/, '$1***$2') : '';
       console.log('[verifyOtp_] Start for', masked);
     } catch {}
+    
     if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
       return { success: false, error: 'Invalid email' };
     }
     if (!/^\d{6}$/.test(code)) {
       return { success: false, error: 'Invalid OTP format' };
     }
-    // Look up OTP in LoginMaster sheet
-    var sh = getLoginMasterSheet_();
-    var row = findGmailRow_(sh, email); // Column D
     
-    if (row === -1) {
+    // Look up OTP in LoginMaster sheet - case-insensitive match in column D (Gmail)
+    var sh = getLoginMasterSheet_();
+    var data = sh.getDataRange().getValues();
+    
+    // Column indices (0-based)
+    var colGmail = 3; // Column D
+    var colOtp = 5;   // Column F
+    
+    // Find matching row (case-insensitive)
+    var matchedRow = -1;
+    for (var i = 1; i < data.length; i++) {
+      var rowEmail = String(data[i][colGmail] || '').trim().toLowerCase();
+      if (rowEmail === email) {
+        matchedRow = i;
+        break;
+      }
+    }
+    
+    if (matchedRow === -1) {
       return { success: false, error: 'Email not found' };
     }
     
-    // Get OTP from column F (index 5)
-    var storedOtp = String(sh.getRange(row, 6).getValue() || '').trim();
+    // Verify OTP from column F
+    var storedOtp = String(data[matchedRow][colOtp] || '').trim();
     
     if (storedOtp === code) {
       // Clear OTP after successful verification
-      sh.getRange(row, 6).setValue('');
-      return { success: true, message: 'OTP verified' };
+      sh.getRange(matchedRow + 1, colOtp + 1).setValue('');
+      
+      // Return user details
+      var name = String(data[matchedRow][2] || ''); // Column C: Name
+      var gmail = String(data[matchedRow][colGmail] || ''); // Column D: Gmail
+      return { 
+        success: true, 
+        message: 'OTP verified', 
+        name: name, 
+        email: gmail 
+      };
     } else {
       return { success: false, error: 'Invalid OTP' };
     }
@@ -1236,3 +1309,5 @@ function verifyOtp_(email, code) {
     return { success: false, error: String(e) };
   }
 }
+
+// ... (rest of the code remains the same)
