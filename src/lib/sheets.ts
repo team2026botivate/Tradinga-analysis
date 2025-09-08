@@ -4,6 +4,28 @@
 import type { Trade } from '../store/trades';
 import { computePnL } from '../store/trades';
 
+// Helper function to convert YYYY-MM-DD to DD-MM-YYYY
+const convertDateFormat = (dateStr: string): string => {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  // Handle both YYYY-MM-DD and full ISO string
+  const datePart = dateStr.split('T')[0];
+  const parts = datePart.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+};
+
+// Helper function to convert DD-MM-YYYY back to YYYY-MM-DD
+const convertDateFormatReverse = (dateStr: string): string => {
+  if (!dateStr || !dateStr.includes('-')) return dateStr;
+  const parts = dateStr.split('-');
+  if (parts.length === 3 && parts[0].length === 2 && parts[1].length === 2 && parts[2].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+};
+
 // Fallbacks (will be used if env vars are not set)
 const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbytdWuWsGhWhEoRaiuOodqnMCyUC_jG-tYRzLVDe6NaokpwMC0JQDGigq9UIzxzH3PV/exec";
 const DEFAULT_SPREADSHEET_ID = "1jfKHZypAhaJVzrQd76okmMipUr7luRFkF5N_q0TKJqo";
@@ -23,7 +45,7 @@ const DEFAULT_TRADES_SHEET: string = TRADES_SHEET_NAME_ENV || 'All Record';
 if (IS_DEV && !GAS_URL_ENV) console.warn(`[Sheets Sync] Using ${IS_DEV ? 'dev proxy /gs' : 'fallback GAS_URL'}. Set VITE_GAS_URL in .env.local to override.`);
 if (IS_DEV && !SPREADSHEET_ID_ENV) console.warn('[Sheets Sync] Using fallback Spreadsheet ID. Set VITE_GS_SHEET_ID in .env.local to override.');
 
-function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 7000, externalSignal?: AbortSignal): Promise<Response> {
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 15000, externalSignal?: AbortSignal): Promise<Response> {
   const ctrl = new AbortController();
   const onAbort = () => ctrl.abort();
   if (externalSignal) {
@@ -128,7 +150,7 @@ async function postToAppsScript(payload: any): Promise<void> {
       },
       body: formData.toString(),
       ...(useProxy ? {} as RequestInit : { mode: 'cors' as const }),
-    }, 8000);
+    }, 15000);
 
     if (!res.ok) {
       console.warn('[Sheets Sync] Non-OK response', res.status, await safeText(res));
@@ -150,7 +172,7 @@ async function postToAppsScript(payload: any): Promise<void> {
         },
         body: formData.toString(),
         mode: 'no-cors',
-      }, 8000);
+      }, 15000);
       console.log('[Sheets Sync] Sent in no-cors (opaque). Request dispatched; response not readable due to browser CORS.');
     } catch (err2) {
       console.warn('[Sheets Sync] Failed to sync even with no-cors:', err2);
@@ -169,8 +191,8 @@ export async function syncTradeToSheet(trade: Trade): Promise<void> {
     spreadsheetId: SPREADSHEET_ID,
     data: {
       id: trade.id,
-      date: trade.date,
-      exitDate: trade.exitDate ?? '',
+      date: convertDateFormat(trade.date), // Convert to DD-MM-YYYY for Google Apps Script
+      exitDate: trade.exitDate ? convertDateFormat(trade.exitDate) : '', // Convert exit date too
       instrument: trade.instrument,
       side: trade.side,
       entryPrice: trade.entryPrice,
@@ -219,7 +241,7 @@ export async function syncTradingDayToSheet(rec: TradingDayForSheet): Promise<vo
     spreadsheetId: SPREADSHEET_ID,
     data: {
       id: rec.id,
-      date: rec.date,
+      date: convertDateFormat(rec.date), // Convert to DD-MM-YYYY for Google Apps Script
       tradesCount: rec.tradesCount,
       symbols: rec.symbols.join(','),
       result: rec.result,
@@ -275,7 +297,7 @@ export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeou
       method: 'GET',
       // Avoid setting non-simple headers on GET to prevent CORS preflight in browsers
     },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
 
@@ -353,7 +375,7 @@ export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeou
         row['Exit date'] ?? row['Exit Date'] ?? row['exit_date'] ?? ''
       );
       const timestamp = String(row['Timestamp'] ?? row['timestamp'] ?? '');
-      const dateStr = timestamp || entryDate;
+      const dateStr = timestamp || convertDateFormatReverse(entryDate); // Convert DD-MM-YYYY back to YYYY-MM-DD
       const instrument = String(row['Instrument'] ?? row['instrument'] ?? '');
       const sideRaw = String(row['Side'] ?? row['side'] ?? 'Buy');
       const side = (sideRaw.toLowerCase() === 'buy' || sideRaw.toLowerCase() === 'long') ? 'Buy' : (sideRaw.toLowerCase() === 'short' ? 'Short' : 'Sell');
@@ -370,7 +392,7 @@ export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeou
       return {
         id,
         date: dateStr,
-        exitDate: exitDateStr || undefined,
+        exitDate: exitDateStr ? convertDateFormatReverse(exitDateStr) : undefined, // Convert exit date back to YYYY-MM-DD
         instrument,
         side: side as Trade['side'],
         entryPrice,
@@ -395,8 +417,8 @@ export const fetchTradesFromSheet = async (opts?: { signal?: AbortSignal; timeou
       const side = (String(sideRaw).toLowerCase() === 'buy' || String(sideRaw).toLowerCase() === 'long') ? 'Buy' : (String(sideRaw).toLowerCase() === 'short' ? 'Short' : 'Sell');
       return {
         id: String(slno ?? `${instrument}-${ts ?? entryDate ?? Date.now()}`),
-        date: String(ts || entryDate || ''),
-        exitDate: String(exitDate || '' ) || undefined,
+        date: String(ts || convertDateFormatReverse(entryDate) || ''), // Convert entry date back to YYYY-MM-DD
+        exitDate: String(exitDate || '') ? convertDateFormatReverse(String(exitDate)) : undefined, // Convert exit date back to YYYY-MM-DD
         instrument: String(instrument || ''),
         side: side as Trade['side'],
         entryPrice: toNum(entry),
@@ -467,7 +489,7 @@ export const fetchTopMoversFromSheet = async (opts?: { signal?: AbortSignal; tim
   const response = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
 
@@ -582,7 +604,7 @@ export const fetchTopProfitFromSheet = async (opts?: {
   const response = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
 
@@ -619,14 +641,33 @@ export const fetchPortfolioStats = async (opts?: {
   const sheet = sheetName ? `&sheet=${encodeURIComponent(sheetName)}` : '';
   const url = isDev ? `/gs?action=getPortfolioStats${sheet}` : `${GAS_BASE_URL}?action=getPortfolioStats${sheet}`;
 
-  const response = await fetchWithTimeout(
-    url,
-    { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
-    opts?.signal
-  );
+  // First attempt
+  let response: Response | null = null;
+  try {
+    response = await fetchWithTimeout(
+      url,
+      { method: 'GET' },
+      opts?.timeoutMs ?? 15000,
+      opts?.signal
+    );
+  } catch (e: any) {
+    // Retry once on timeout/abort/network errors with longer timeout
+    const isAbort = e?.name === 'AbortError';
+    const isNetwork = e?.name === 'TypeError' || String(e?.message || '').toLowerCase().includes('network');
+    if (isAbort || isNetwork) {
+      console.warn('[Sheets] Portfolio stats fetch aborted/failed, retrying once with longer timeout...', e?.message || e);
+      response = await fetchWithTimeout(
+        url,
+        { method: 'GET' },
+        Math.max(20000, (opts?.timeoutMs ?? 15000) + 5000),
+        opts?.signal
+      );
+    } else {
+      throw e;
+    }
+  }
 
-  if (!response.ok) {
+  if (!response || !response.ok) {
     const body = await safeText(response);
     throw new Error(`Failed to fetch portfolio stats: ${response.status} ${body}`);
   }
@@ -717,12 +758,12 @@ export const fetchTradingDayStats = async (opts?: {
     const payload = (raw as any)?.data ?? raw ?? {};
 
     const best = payload?.best ? {
-      date: String(payload.best.date ?? ''),
+      date: convertDateFormatReverse(String(payload.best.date ?? '')), // Convert DD-MM-YYYY back to YYYY-MM-DD
       pnl: Number(payload.best.pnl ?? 0)
     } : { date: '', pnl: 0 };
 
     const worst = payload?.worst ? {
-      date: String(payload.worst.date ?? ''),
+      date: convertDateFormatReverse(String(payload.worst.date ?? '')), // Convert DD-MM-YYYY back to YYYY-MM-DD
       pnl: Number(payload.worst.pnl ?? 0)
     } : { date: '', pnl: 0 };
 
@@ -774,7 +815,7 @@ export const fetchUserProfileFromSheet = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 8000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   if (!res.ok) {
@@ -802,7 +843,7 @@ export const sendOtp = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   const data = await safeJson(res);
@@ -825,7 +866,7 @@ export const verifyOtp = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   const data = await safeJson(res);
@@ -850,7 +891,7 @@ export const sendOtpPhone = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   const data = await safeJson(res);
@@ -873,7 +914,7 @@ export const verifyOtpPhone = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 10000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   const data = await safeJson(res);
@@ -899,7 +940,7 @@ export const loginWithPassword = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 12000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   if (!res.ok) {
@@ -935,7 +976,7 @@ export const verifyLogin = async (
   const res = await fetchWithTimeout(
     url,
     { method: 'GET' },
-    opts?.timeoutMs ?? 12000,
+    opts?.timeoutMs ?? 15000,
     opts?.signal
   );
   if (!res.ok) {
@@ -966,7 +1007,7 @@ export async function updatePassword(email: string, newPassword: string): Promis
 
     const response = await fetchWithTimeout(`${GAS_BASE_URL}?action=updatePassword&email=${encodeURIComponent(email)}&newPassword=${encodeURIComponent(newPassword)}`, {
       method: 'GET'
-    }, 10000); // 10 second timeout
+    }, 15000); // 15 second timeout
 
     if (!response.ok) {
       const errorText = await safeText(response);
@@ -1037,7 +1078,7 @@ export async function getPassword(email: string): Promise<{success: boolean, pas
 
     const response = await fetchWithTimeout(`${GAS_BASE_URL}?action=getPassword&email=${encodeURIComponent(email)}`, {
       method: 'GET'
-    }, 8000); // 8 second timeout
+    }, 15000); // 15 second timeout
 
     if (!response.ok) {
       const errorText = await safeText(response);

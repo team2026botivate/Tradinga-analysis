@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
     try {
       setPortfolioLoading(true);
       setPortfolioError('');
-      const stats = await fetchPortfolioStats({ timeoutMs: 10000 });
+      const stats = await fetchPortfolioStats({ timeoutMs: 20000 });
       setPortfolio(stats);
     } catch (e) {
       console.error('Failed to load portfolio stats:', e);
@@ -94,7 +94,7 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true);
       setError('');
-      const data = await fetchTopProfitFromSheet({ timeoutMs: 12000 });
+      const data = await fetchTopProfitFromSheet({ timeoutMs: 20000 });
       setProfits(Array.isArray(data) ? data.slice(0, 10) : []);
       setLastUpdated(new Date().toLocaleString());
     } catch (e: any) {
@@ -110,7 +110,7 @@ const Dashboard: React.FC = () => {
   const loadTradingStats = async () => {
     try {
       console.log('Fetching trading stats...');
-      const stats = await fetchTradingDayStats({ timeoutMs: 10000 });
+      const stats = await fetchTradingDayStats({ timeoutMs: 20000 });
       console.log('Received stats:', stats);
       setTradingStats(stats);
     } catch (e) {

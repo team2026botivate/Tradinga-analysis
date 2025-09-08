@@ -600,7 +600,7 @@ const Trade: React.FC = () => {
                 const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
                 return (
                   <tr key={t.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50 hover:bg-slate-100/80 transition-colors">
-                    <td className="py-2 pr-4 whitespace-nowrap">{new Date(t.date).toLocaleString()}</td>
+                    <td className="py-2 pr-4 whitespace-nowrap">{new Date(t.date).toISOString().slice(0, 10)}</td>
                     <td className="py-2 pr-4">{t.instrument}</td>
                     <td className="py-2 pr-4">{t.side}</td>
                     <td className="py-2 pr-4">{t.entryPrice}</td>
