@@ -841,42 +841,54 @@ const TradeForm: React.FC<{ onSaved: () => void; initialDate?: string; initialPn
         <p className="text-sm text-slate-600 dark:text-slate-400">Record your trading activity with detailed analytics</p>
       </div>
 
-      {/* Date inputs - Enhanced mobile layout */}
+      {/* Date inputs - Enhanced mobile layout with fixed containers */}
       <div className="space-y-4">
         <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 sm:gap-4">
           <div className="space-y-1">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Entry Date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
-              value={form.date || ''}
-              onChange={e => set('date', e.target.value)}
-              onBlur={() => handleFieldBlur('date')}
-              max={today}
-              className={`w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
-                formErrors.date && touched.date
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              required
-            />
-            {formErrors.date && touched.date && (
-              <p className="text-xs text-red-600 dark:text-red-400">{formErrors.date}</p>
-            )}
+            <div className="relative w-full">
+              <input
+                type="date"
+                value={form.date || ''}
+                onChange={e => set('date', e.target.value)}
+                onBlur={() => handleFieldBlur('date')}
+                max={today}
+                className={`w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base font-medium ${
+                  formErrors.date && touched.date
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500'
+                }`}
+                required
+                style={{
+                  minWidth: '120px',
+                  maxWidth: '100%'
+                }}
+              />
+              {formErrors.date && touched.date && (
+                <p className="text-xs text-red-600 dark:text-red-400 mt-1">{formErrors.date}</p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-1">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
               Exit Date
             </label>
-            <input
-              type="date"
-              value={form.exitDate || ''}
-              onChange={e => set('exitDate', e.target.value)}
-              min={form.date || ''}
-              className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
-            />
+            <div className="relative w-full">
+              <input
+                type="date"
+                value={form.exitDate || ''}
+                onChange={e => set('exitDate', e.target.value)}
+                min={form.date || ''}
+                className="w-full px-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base font-medium"
+                style={{
+                  minWidth: '120px',
+                  maxWidth: '100%'
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>

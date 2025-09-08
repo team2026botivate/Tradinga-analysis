@@ -103,118 +103,186 @@ const Screener: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Stock Screener</h1>
-          <p className="text-slate-600 mt-1">Filter stocks by fundamentals and performance</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">Stock Screener</h1>
+          <p className="text-slate-600 dark:text-slate-400 mt-1">Filter stocks by fundamentals and performance</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={clearFilters} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200">
-            Reset
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button
+            onClick={clearFilters}
+            className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors font-medium"
+          >
+            Clear Filters
           </button>
-          <button className="px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-700 flex items-center gap-2">
-            <Filter className="h-4 w-4" /> Apply Filters
-          </button>
+          <div className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-2.5 rounded-lg">
+            {results.length} results
+          </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          <div className="col-span-2 md:col-span-2 lg:col-span-2">
-            <label className="text-sm text-slate-600">Search</label>
-            <div className="mt-1 flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
-              <Search className="h-4 w-4 text-slate-500" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Symbol or company"
-                     className="w-full bg-transparent outline-none text-slate-800 placeholder-slate-400" />
+      {/* Enhanced Filters Panel - Mobile Optimized */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6 space-y-6">
+          {/* Filter Header with Mobile Toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Filter className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+              <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">Stock Filters</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-full">
+                {[
+                  query && 'Search',
+                  cap && 'Cap',
+                  sector && 'Sector',
+                  (minPrice || maxPrice) && 'Price',
+                  minChange && 'Change',
+                  rating && 'Rating',
+                  onlyGainers && 'Gainers'
+                ].filter(Boolean).length} active
+              </div>
+              <button
+                onClick={clearFilters}
+                className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 underline"
+              >
+                Clear all
+              </button>
             </div>
           </div>
 
-          <div>
-            <label className="text-sm text-slate-600">Market Cap</label>
-            <div className="mt-1 relative">
+          {/* Main Search - Full Width on Mobile */}
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Search Stocks
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-400" />
+              </div>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Symbol or company name (e.g., RELIANCE, TCS)"
+                className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Primary Filters Grid - Better Mobile Layout */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Market Cap */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Market Cap
+              </label>
               <select
                 value={cap}
                 onChange={(e) => setCap(e.target.value)}
-                className="w-full appearance-none pr-9 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-primary-300 transition-colors"
+                className="w-full px-3 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
-                <option value="">Any</option>
+                <option value="">All Market Caps</option>
                 {caps.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                </svg>
-              </span>
             </div>
-          </div>
 
-          <div>
-            <label className="text-sm text-slate-600">Sector</label>
-            <div className="mt-1 relative">
+            {/* Sector */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Sector
+              </label>
               <select
                 value={sector}
                 onChange={(e) => setSector(e.target.value)}
-                className="w-full appearance-none pr-9 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-primary-300 transition-colors"
+                className="w-full px-3 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
-                <option value="">Any</option>
+                <option value="">All Sectors</option>
                 {sectors.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                </svg>
-              </span>
             </div>
-          </div>
 
-          <div>
-            <label className="text-sm text-slate-600">Min Price</label>
-            <input value={minPrice} onChange={(e) => setMinPrice(e.target.value)} type="number" min="0" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400" />
-          </div>
-
-          <div>
-            <label className="text-sm text-slate-600">Max Price</label>
-            <input value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} type="number" min="0" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400" />
-          </div>
-
-          <div>
-            <label className="text-sm text-slate-600">Min Daily Change (%)</label>
-            <input value={minChange} onChange={(e) => setMinChange(e.target.value)} type="number" step="0.01"
-                   className="mt-1 w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400" />
-          </div>
-
-          <div>
-            <label className="text-sm text-slate-600">Rating</label>
-            <div className="mt-1 relative">
-              <select
-                value={rating}
-                onChange={(e) => setRating(e.target.value as Stock['rating'] | '')}
-                className="w-full appearance-none pr-9 px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent hover:border-primary-300 transition-colors"
-              >
-                <option value="">Any</option>
-                {ratings.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
-              <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                </svg>
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-end">
-            <label className="inline-flex items-center gap-2 select-none">
+            {/* Price Range */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Min Price (₹)
+              </label>
               <input
-                type="checkbox"
-                checked={onlyGainers}
-                onChange={(e) => setOnlyGainers(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                className="w-full px-3 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               />
-              <span className="text-slate-700">Only Gainers</span>
-            </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Max Price (₹)
+              </label>
+              <input
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="No limit"
+                className="w-full px-3 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Advanced Filters - Collapsible on Mobile */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Advanced Filters</h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Min Change */}
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Min Change (%)
+                </label>
+                <input
+                  value={minChange}
+                  onChange={(e) => setMinChange(e.target.value)}
+                  type="number"
+                  step="0.01"
+                  placeholder="-10.00"
+                  className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                />
+              </div>
+
+              {/* Rating */}
+              <div className="space-y-2">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Analyst Rating
+                </label>
+                <select
+                  value={rating}
+                  onChange={(e) => setRating(e.target.value as Stock['rating'] | '')}
+                  className="w-full px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                >
+                  <option value="">All Ratings</option>
+                  {ratings.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+
+              {/* Only Gainers Checkbox */}
+              <div className="flex items-center justify-center sm:justify-start">
+                <label className="inline-flex items-center gap-2 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={onlyGainers}
+                    onChange={(e) => setOnlyGainers(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                  />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
+                    Only Gainers
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
