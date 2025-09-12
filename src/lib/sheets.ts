@@ -33,8 +33,8 @@ const convertDateFormatReverse = (dateStr: string): string => {
 
 // Fallbacks (will be used if env vars are not set)`
 const DEFAULT_GAS_URL =
-  "https://script.google.com/macros/s/AKfycbyJo185ncwqniJNpFQmmLCcctlEdy1cyG5Ro075AK-gy8pAeg4zncVewNe7aGUpPC96mw/exec";
-const DEFAULT_SPREADSHEET_ID = "1ZjBPrwmjQvYCXLYeVSK8vBIp3gCiRyBWvZhTImyvKD8";
+  "https://script.google.com/macros/s/AKfycbytdWuWsGhWhEoRaiuOodqnMCyUC_jG-tYRzLVDe6NaokpwMC0JQDGigq9UIzxzH3PV/exec";
+const DEFAULT_SPREADSHEET_ID = "1jfKHZypAhaJVzrQd76okmMipUr7luRFkF5N_q0TKJqo";
 
 const GAS_URL_ENV: string | undefined = (import.meta as any).env?.VITE_GAS_URL;
 const SPREADSHEET_ID_ENV: string | undefined = (import.meta as any).env
