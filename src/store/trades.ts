@@ -3,6 +3,7 @@ export type Trade = {
   id: string;
   date: string; // ISO entry date-time
   exitDate?: string; // ISO exit date-time (optional)
+  sheetTimestamp?: string; // Raw timestamp from Google Sheet (display only)
   instrument: string;
   side: 'Buy' | 'Sell' | 'Long' | 'Short';
   entryPrice: number;

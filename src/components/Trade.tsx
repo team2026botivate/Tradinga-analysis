@@ -1,26 +1,31 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { getTrades, toCSV, addTrade, Trade as JournalTrade } from '../store/trades';
-import Select from './ui/Select';
-import { CheckCircle2, IndianRupee, ShoppingCart, TrendingUp, ArrowRightLeft, CalendarDays, ListOrdered, Tags, BarChart, Wallet, FileText } from 'lucide-react';
-import { syncTradingDayToSheet, syncTradeToSheet } from '../lib/sheets';
+import React, { useEffect, useMemo, useState } from "react";
+import { getTrades, toCSV, Trade as JournalTrade } from "../store/trades";
+import Select from "./ui/Select";
+import {
+  CheckCircle2,
+  IndianRupee,
+  ShoppingCart,
+  TrendingUp,
+  ArrowRightLeft,
+} from "lucide-react";
 
 // Simple price map for demo. In a real app, fetch live prices.
 const demoPrices: Record<string, { name: string; price: number }> = {
-  RELIANCE: { name: 'Reliance Industries', price: 2945.3 },
-  TCS: { name: 'Tata Consultancy Services', price: 3764.8 },
-  HDFCBANK: { name: 'HDFC Bank', price: 1635.5 },
-  INFY: { name: 'Infosys', price: 1598.4 },
-  ITC: { name: 'ITC Limited', price: 468.9 },
-  SBIN: { name: 'State Bank of India', price: 834.2 },
-  ONGC: { name: 'Oil & Natural Gas Corp', price: 282.4 },
-  ADANIENT: { name: 'Adani Enterprises', price: 3085.6 },
+  RELIANCE: { name: "Reliance Industries", price: 2945.3 },
+  TCS: { name: "Tata Consultancy Services", price: 3764.8 },
+  HDFCBANK: { name: "HDFC Bank", price: 1635.5 },
+  INFY: { name: "Infosys", price: 1598.4 },
+  ITC: { name: "ITC Limited", price: 468.9 },
+  SBIN: { name: "State Bank of India", price: 834.2 },
+  ONGC: { name: "Oil & Natural Gas Corp", price: 282.4 },
+  ADANIENT: { name: "Adani Enterprises", price: 3085.6 },
 };
 
-type OrderType = 'Market' | 'Limit' | 'Stop';
+type OrderType = "Market" | "Limit" | "Stop";
 
 type Txn = {
   id: string;
-  type: 'BUY' | 'SELL';
+  type: "BUY" | "SELL";
   symbol: string;
   name: string;
   qty: number;
@@ -30,39 +35,59 @@ type Txn = {
   orderType: OrderType;
 };
 
-type Holdings = Record<string, { symbol: string; name: string; qty: number; avgPrice: number }>;
+type Holdings = Record<
+  string,
+  { symbol: string; name: string; qty: number; avgPrice: number }
+>;
 
 const storage = {
   getTxns(): Txn[] {
-    try { return JSON.parse(localStorage.getItem('transactions') || '[]'); } catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem("transactions") || "[]");
+    } catch {
+      return [];
+    }
   },
-  setTxns(txns: Txn[]) { localStorage.setItem('transactions', JSON.stringify(txns)); },
+  setTxns(txns: Txn[]) {
+    localStorage.setItem("transactions", JSON.stringify(txns));
+  },
   getHoldings(): Holdings {
-    try { return JSON.parse(localStorage.getItem('holdings') || '{}'); } catch { return {}; }
+    try {
+      return JSON.parse(localStorage.getItem("holdings") || "{}");
+    } catch {
+      return {};
+    }
   },
-  setHoldings(h: Holdings) { localStorage.setItem('holdings', JSON.stringify(h)); },
+  setHoldings(h: Holdings) {
+    localStorage.setItem("holdings", JSON.stringify(h));
+  },
 };
 
 const symbols = Object.keys(demoPrices);
 
 const Trade: React.FC = () => {
   // Buy form state
-  const [buySymbol, setBuySymbol] = useState('RELIANCE');
+  const [buySymbol, setBuySymbol] = useState("RELIANCE");
   const [buyQty, setBuyQty] = useState<number>(0);
   const [buyPrice, setBuyPrice] = useState<number>(demoPrices[buySymbol].price);
-  const [buyOrderType, setBuyOrderType] = useState<OrderType>('Market');
+  const [buyOrderType, setBuyOrderType] = useState<OrderType>("Market");
   const [addToPortfolio, setAddToPortfolio] = useState(true);
-  const [showConfirm, setShowConfirm] = useState<null | { action: 'BUY' | 'SELL'; payload: any }>(null);
-  const [success, setSuccess] = useState<string>('');
+  const [showConfirm, setShowConfirm] = useState<null | {
+    action: "BUY" | "SELL";
+    payload: any;
+  }>(null);
+  const [success, setSuccess] = useState<string>("");
 
   // Sell form state
-  const [sellSymbol, setSellSymbol] = useState('RELIANCE');
+  const [sellSymbol, setSellSymbol] = useState("RELIANCE");
   const [sellQty, setSellQty] = useState<number>(0);
-  const [sellPrice, setSellPrice] = useState<number>(demoPrices[sellSymbol].price);
-  const [sellOrderType, setSellOrderType] = useState<OrderType>('Market');
+  const [sellPrice, setSellPrice] = useState<number>(
+    demoPrices[sellSymbol].price
+  );
+  const [sellOrderType, setSellOrderType] = useState<OrderType>("Market");
 
   const [holdingsVersion, setHoldingsVersion] = useState(0); // trigger re-render after trade
-  const [activeTab, setActiveTab] = useState<'BUY' | 'SELL'>('BUY');
+  const [activeTab, setActiveTab] = useState<"BUY" | "SELL">("BUY");
   const [buyShimmer, setBuyShimmer] = useState(false);
   const [sellShimmer, setSellShimmer] = useState(false);
   // Journal-style trade form modal
@@ -73,8 +98,10 @@ const Trade: React.FC = () => {
   useEffect(() => {
     if (showFormModal) {
       const prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = prev; };
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = prev;
+      };
     }
   }, [showFormModal]);
 
@@ -91,17 +118,147 @@ const Trade: React.FC = () => {
     return () => clearTimeout(t);
   }, [sellSymbol]);
 
-  const buyName = demoPrices[buySymbol]?.name || '';
-  const sellName = demoPrices[sellSymbol]?.name || '';
+  const buyName = demoPrices[buySymbol]?.name || "";
+  const sellName = demoPrices[sellSymbol]?.name || "";
 
   const totalBuy = (buyQty || 0) * (buyPrice || 0);
   const totalSell = (sellQty || 0) * (sellPrice || 0);
 
+  // Seed/clear demo data to make Trade/Transactions/P&L functional instantly
+  const seedDemo = () => {
+    const now = Date.now();
+    const demoTx = [
+      {
+        id: `${now - 500000}_a1`,
+        type: "BUY" as const,
+        symbol: "RELIANCE",
+        name: demoPrices.RELIANCE.name,
+        qty: 10,
+        price: 2900,
+        total: 29000,
+        timestamp: now - 500000,
+        orderType: "Market" as const,
+      },
+      {
+        id: `${now - 450000}_a2`,
+        type: "BUY" as const,
+        symbol: "INFY",
+        name: demoPrices.INFY.name,
+        qty: 15,
+        price: 1550,
+        total: 23250,
+        timestamp: now - 450000,
+        orderType: "Limit" as const,
+      },
+      {
+        id: `${now - 420000}_a3`,
+        type: "BUY" as const,
+        symbol: "ONGC",
+        name: demoPrices.ONGC.name,
+        qty: 50,
+        price: 275,
+        total: 13750,
+        timestamp: now - 420000,
+        orderType: "Market" as const,
+      },
+      {
+        id: `${now - 300000}_a4`,
+        type: "SELL" as const,
+        symbol: "INFY",
+        name: demoPrices.INFY.name,
+        qty: 5,
+        price: 1605,
+        total: 8025,
+        timestamp: now - 300000,
+        orderType: "Market" as const,
+      },
+      {
+        id: `${now - 200000}_a5`,
+        type: "BUY" as const,
+        symbol: "SBIN",
+        name: demoPrices.SBIN.name,
+        qty: 20,
+        price: 820,
+        total: 16400,
+        timestamp: now - 200000,
+        orderType: "Market" as const,
+      },
+      {
+        id: `${now - 100000}_a6`,
+        type: "SELL" as const,
+        symbol: "RELIANCE",
+        name: demoPrices.RELIANCE.name,
+        qty: 4,
+        price: 2950,
+        total: 11800,
+        timestamp: now - 100000,
+        orderType: "Limit" as const,
+      },
+    ];
+
+    // Compute holdings from txns
+    const holdings: Holdings = {};
+    for (const tx of demoTx) {
+      const cur = holdings[tx.symbol] || {
+        symbol: tx.symbol,
+        name: tx.name,
+        qty: 0,
+        avgPrice: 0,
+      };
+      if (tx.type === "BUY") {
+        const newQty = cur.qty + tx.qty;
+        const newCost = cur.qty * cur.avgPrice + tx.qty * tx.price;
+        holdings[tx.symbol] = {
+          symbol: tx.symbol,
+          name: tx.name,
+          qty: newQty,
+          avgPrice: newQty ? newCost / newQty : 0,
+        };
+      } else {
+        const newQty = Math.max(0, cur.qty - tx.qty);
+        holdings[tx.symbol] = { ...cur, qty: newQty };
+      }
+    }
+
+    // Save (newest first)
+    storage.setTxns(demoTx.sort((a, b) => b.timestamp - a.timestamp));
+    storage.setHoldings(holdings);
+    setHoldingsVersion((v) => v + 1);
+    setSuccess("Demo data loaded");
+    setTimeout(() => setSuccess(""), 2500);
+  };
+
+  const clearDemo = () => {
+    localStorage.removeItem("transactions");
+    localStorage.removeItem("holdings");
+    setHoldingsVersion((v) => v + 1);
+    setSuccess("Demo data cleared");
+    setTimeout(() => setSuccess(""), 2000);
+  };
+
   const doBuy = () => {
-    setShowConfirm({ action: 'BUY', payload: { symbol: buySymbol, name: buyName, qty: buyQty, price: buyPrice, orderType: buyOrderType } });
+    setShowConfirm({
+      action: "BUY",
+      payload: {
+        symbol: buySymbol,
+        name: buyName,
+        qty: buyQty,
+        price: buyPrice,
+        orderType: buyOrderType,
+      },
+    });
   };
   const doSell = () => {
-    setShowConfirm({ action: 'SELL', payload: { symbol: sellSymbol, name: sellName, qty: sellQty, price: sellPrice, orderType: sellOrderType } });
+    setShowConfirm({
+      action: "SELL",
+      payload: {
+        symbol: sellSymbol,
+        name: sellName,
+        qty: sellQty,
+        price: sellPrice,
+        orderType: sellOrderType,
+      },
+    });
   };
 
   const confirm = () => {
@@ -126,59 +283,41 @@ const Trade: React.FC = () => {
 
     // update holdings
     const h = storage.getHoldings();
-    const cur = h[tx.symbol] || { symbol: tx.symbol, name: tx.name, qty: 0, avgPrice: 0 };
+    const cur = h[tx.symbol] || {
+      symbol: tx.symbol,
+      name: tx.name,
+      qty: 0,
+      avgPrice: 0,
+    };
 
-    if (tx.type === 'BUY') {
+    if (tx.type === "BUY") {
       // Weighted average price update
       const newQty = cur.qty + tx.qty;
       const newCost = cur.qty * cur.avgPrice + tx.qty * tx.price;
-      h[tx.symbol] = { symbol: tx.symbol, name: tx.name, qty: newQty, avgPrice: newQty ? newCost / newQty : 0 };
+      h[tx.symbol] = {
+        symbol: tx.symbol,
+        name: tx.name,
+        qty: newQty,
+        avgPrice: newQty ? newCost / newQty : 0,
+      };
       if (!addToPortfolio) {
         // if not adding to portfolio, revert holding change
         h[tx.symbol] = cur;
       }
-      setSuccess(`Purchased ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${tx.orderType})`);
-      // Log to Journal store as a trade entry
-      try {
-        const jt: JournalTrade = {
-          id: Math.random().toString(36).slice(2,9),
-          date: new Date(tx.timestamp).toISOString(),
-          instrument: tx.symbol,
-          side: 'Buy',
-          entryPrice: tx.price,
-          exitPrice: tx.price, // initial exit same as entry; can be edited later in Journal
-          quantity: tx.qty,
-          strategy: '',
-          entryReason: 'Purchase from Trade tab',
-          notes: `Order: ${tx.orderType}`,
-        };
-        addTrade(jt as any);
-        // Fire-and-forget sync to Google Sheets
-        void syncTradeToSheet(jt as any);
-      } catch {}
+      setSuccess(
+        `Purchased ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${
+          tx.orderType
+        })`
+      );
     } else {
       // SELL: reduce qty, keep avgPrice same
       const newQty = Math.max(0, cur.qty - tx.qty);
       h[tx.symbol] = { ...cur, qty: newQty };
-      setSuccess(`Sold ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${tx.orderType})`);
-      // Optionally also log Sell to Journal
-      try {
-        const jt: JournalTrade = {
-          id: Math.random().toString(36).slice(2,9),
-          date: new Date(tx.timestamp).toISOString(),
-          instrument: tx.symbol,
-          side: 'Sell',
-          entryPrice: tx.price,
-          exitPrice: tx.price,
-          quantity: tx.qty,
-          strategy: '',
-          entryReason: 'Sale from Trade tab',
-          notes: `Order: ${tx.orderType}`,
-        };
-        addTrade(jt as any);
-        // Fire-and-forget sync to Google Sheets
-        void syncTradeToSheet(jt as any);
-      } catch {}
+      setSuccess(
+        `Sold ${tx.qty} ${tx.symbol} @ ₹${tx.price.toFixed(2)} (${
+          tx.orderType
+        })`
+      );
     }
 
     storage.setHoldings(h);
@@ -189,10 +328,16 @@ const Trade: React.FC = () => {
     setBuyQty(0);
     setSellQty(0);
 
-    setTimeout(() => setSuccess(''), 3000);
+    setTimeout(() => setSuccess(""), 3000);
   };
 
-  const ownedSymbols = useMemo(() => Object.keys(storage.getHoldings()).filter(s => storage.getHoldings()[s].qty > 0), [holdingsVersion]);
+  const ownedSymbols = useMemo(
+    () =>
+      Object.keys(storage.getHoldings()).filter(
+        (s) => storage.getHoldings()[s].qty > 0
+      ),
+    [holdingsVersion]
+  );
   const ownedQty = storage.getHoldings()[sellSymbol]?.qty || 0;
 
   // Journal trades for All Trades table
@@ -201,26 +346,29 @@ const Trade: React.FC = () => {
 
   // Filters (mirroring Journal)
   const [filters, setFilters] = useState({
-    dateFrom: '',
-    dateTo: '',
-    strategy: '',
-    instrument: '',
-    status: 'all' as 'all' | 'win' | 'loss',
-    search: '',
+    dateFrom: "",
+    dateTo: "",
+    strategy: "",
+    instrument: "",
+    status: "all" as "all" | "win" | "loss",
+    search: "",
     year: String(new Date().getFullYear()),
   });
 
   const symbolsList = useMemo(
-    () => Array.from(new Set(tradesAll.map(t => t.instrument))).sort(),
+    () => Array.from(new Set(tradesAll.map((t) => t.instrument))).sort(),
     [tradesAll]
   );
   const strategiesList = useMemo(
-    () => Array.from(new Set(tradesAll.map(t => t.strategy || ''))).filter(Boolean).sort(),
+    () =>
+      Array.from(new Set(tradesAll.map((t) => t.strategy || "")))
+        .filter(Boolean)
+        .sort(),
     [tradesAll]
   );
 
   const filteredTrades = useMemo(() => {
-    return tradesAll.filter(t => {
+    return tradesAll.filter((t) => {
       const d = new Date(t.date).getTime();
       if (filters.dateFrom) {
         const f = new Date(filters.dateFrom).getTime();
@@ -234,52 +382,87 @@ const Trade: React.FC = () => {
         const y = new Date(t.date).getFullYear();
         if (String(y) !== String(filters.year)) return false;
       }
-      if (filters.strategy && (t.strategy || '') !== filters.strategy) return false;
-      if (filters.instrument && !t.instrument.toLowerCase().includes(filters.instrument.toLowerCase())) return false;
+      if (filters.strategy && (t.strategy || "") !== filters.strategy)
+        return false;
+      if (
+        filters.instrument &&
+        !t.instrument.toLowerCase().includes(filters.instrument.toLowerCase())
+      )
+        return false;
       if (filters.search) {
         const q = filters.search.toLowerCase();
-        const hay = [t.instrument, t.strategy || '', t.notes || '', t.entryReason || '', t.exitReason || '']
-          .join(' ').toLowerCase();
+        const hay = [
+          t.instrument,
+          t.strategy || "",
+          t.notes || "",
+          t.entryReason || "",
+          t.exitReason || "",
+        ]
+          .join(" ")
+          .toLowerCase();
         if (!hay.includes(q)) return false;
       }
-      if (filters.status !== 'all') {
-        const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+      if (filters.status !== "all") {
+        const dir = t.side === "Buy" || t.side === "Long" ? 1 : -1;
         const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
-        if (filters.status === 'win' && pnl < 0) return false;
-        if (filters.status === 'loss' && pnl >= 0) return false;
+        if (filters.status === "win" && pnl < 0) return false;
+        if (filters.status === "loss" && pnl >= 0) return false;
       }
       return true;
     });
   }, [tradesAll, filters]);
   // Auto-refresh when trades change in this tab or another tab
   useEffect(() => {
-    const onChange = () => setTick(v => v + 1);
-    window.addEventListener('trades_changed' as any, onChange);
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'trades_v1') onChange();
+    const onChange = () => setTick((v) => v + 1);
+    window.addEventListener("trades_changed" as any, onChange);
+    window.addEventListener("storage", (e) => {
+      if (e.key === "trades_v1") onChange();
     });
     return () => {
-      window.removeEventListener('trades_changed' as any, onChange);
-      window.removeEventListener('storage', onChange as any);
+      window.removeEventListener("trades_changed" as any, onChange);
+      window.removeEventListener("storage", onChange as any);
     };
   }, []);
-  type SortKey = 'date'|'instrument'|'side'|'entryPrice'|'exitPrice'|'quantity'|'pnl';
-  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc'|'desc' }>({ key: 'date', dir: 'desc' });
+  type SortKey =
+    | "date"
+    | "instrument"
+    | "side"
+    | "entryPrice"
+    | "exitPrice"
+    | "quantity"
+    | "pnl";
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({
+    key: "date",
+    dir: "desc",
+  });
   const sorted = useMemo(() => {
     const arr = [...filteredTrades];
     const cmp = (a: JournalTrade, b: JournalTrade) => {
-      const dir = sort.dir === 'asc' ? 1 : -1;
-      const pnlA = (a.exitPrice - a.entryPrice) * (a.side === 'Buy' || a.side === 'Long' ? 1 : -1) * a.quantity;
-      const pnlB = (b.exitPrice - b.entryPrice) * (b.side === 'Buy' || b.side === 'Long' ? 1 : -1) * b.quantity;
+      const dir = sort.dir === "asc" ? 1 : -1;
+      const pnlA =
+        (a.exitPrice - a.entryPrice) *
+        (a.side === "Buy" || a.side === "Long" ? 1 : -1) *
+        a.quantity;
+      const pnlB =
+        (b.exitPrice - b.entryPrice) *
+        (b.side === "Buy" || b.side === "Long" ? 1 : -1) *
+        b.quantity;
       const val = (() => {
         switch (sort.key) {
-          case 'date': return new Date(a.date).getTime() - new Date(b.date).getTime();
-          case 'instrument': return a.instrument.localeCompare(b.instrument);
-          case 'side': return String(a.side).localeCompare(String(b.side));
-          case 'entryPrice': return a.entryPrice - b.entryPrice;
-          case 'exitPrice': return a.exitPrice - b.exitPrice;
-          case 'quantity': return a.quantity - b.quantity;
-          case 'pnl': return pnlA - pnlB;
+          case "date":
+            return new Date(a.date).getTime() - new Date(b.date).getTime();
+          case "instrument":
+            return a.instrument.localeCompare(b.instrument);
+          case "side":
+            return String(a.side).localeCompare(String(b.side));
+          case "entryPrice":
+            return a.entryPrice - b.entryPrice;
+          case "exitPrice":
+            return a.exitPrice - b.exitPrice;
+          case "quantity":
+            return a.quantity - b.quantity;
+          case "pnl":
+            return pnlA - pnlB;
         }
       })() as number;
       return val * dir;
@@ -290,48 +473,89 @@ const Trade: React.FC = () => {
 
   const exportCSV = () => {
     const csv = toCSV(filteredTrades);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `trades_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = `trades_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Trade</h1>
-          <p className="text-slate-600 mt-1">Buy or sell stocks. Transactions are stored locally.</p>
+          <h1 className="text-3xl font-bold text-slate-900">Trade</h1>
+          <p className="mt-1 text-slate-600">
+            Buy or sell stocks. Transactions are stored locally.
+          </p>
+        </div>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={seedDemo}
+            className="text-white bg-blue-600 shadow-sm btn hover:bg-blue-700 subtle-hover"
+          >
+            Load Demo
+          </button>
+          <button
+            onClick={clearDemo}
+            className="btn bg-slate-100 text-slate-700 subtle-hover"
+          >
+            Clear
+          </button>
         </div>
       </div>
 
       {/* Top controls (like Journal) */}
-      <section className="surface-card p-4 space-y-3 hover:bg-slate-50 hover:shadow-sm transition-colors">
-        <div className="flex flex-col md:flex-row gap-3">
-          <label className="text-sm flex-1">
-            <span className="block mb-1 text-slate-600">Search symbols, strategies, notes</span>
+      <section className="p-4 space-y-3 transition-colors surface-card hover:bg-slate-50 hover:shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row">
+          <label className="flex-1 text-sm">
+            <span className="block mb-1 text-slate-600">
+              Search symbols, strategies, notes
+            </span>
             <input
               value={filters.search}
-              onChange={e => setFilters(s => ({ ...s, search: e.target.value }))}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, search: e.target.value }))
+              }
               placeholder="e.g., RELIANCE breakout ..."
               className="input"
             />
           </label>
           <label className="text-sm md:w-64">
             <span className="block mb-1 text-slate-600">Date from</span>
-            <input type="date" value={filters.dateFrom} onChange={e => setFilters(s => ({ ...s, dateFrom: e.target.value }))} className="input" />
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, dateFrom: e.target.value }))
+              }
+              className="input"
+            />
           </label>
           <label className="text-sm md:w-64">
             <span className="block mb-1 text-slate-600">Date to</span>
-            <input type="date" value={filters.dateTo} onChange={e => setFilters(s => ({ ...s, dateTo: e.target.value }))} className="input" />
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, dateTo: e.target.value }))
+              }
+              className="input"
+            />
           </label>
-          <div className="self-start -mt-1 md:-mt-2 flex items-center gap-2">
+          <div className="flex gap-2 items-center self-start -mt-1 md:-mt-2">
+            <button onClick={seedDemo} className="btn-primary">
+              Load Demo Data
+            </button>
+            <button onClick={clearDemo} className="btn-outline-danger">
+              Clear Data
+            </button>
             <button
               onClick={() => {
-                setDraftDate(new Date().toISOString().slice(0,10));
+                setDraftDate(new Date().toISOString().slice(0, 16));
                 setShowFormModal(true);
               }}
               className="btn-secondary"
@@ -340,35 +564,43 @@ const Trade: React.FC = () => {
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <Select
             label="All Results"
             value={filters.status}
-            onChange={v => setFilters(s => ({ ...s, status: v as any }))}
+            onChange={(v) => setFilters((s) => ({ ...s, status: v as any }))}
             options={[
-              { label: 'All Results', value: 'all' },
-              { label: 'Wins', value: 'win' },
-              { label: 'Losses', value: 'loss' },
+              { label: "All Results", value: "all" },
+              { label: "Wins", value: "win" },
+              { label: "Losses", value: "loss" },
             ]}
           />
           <Select
             label="All Symbols"
             value={filters.instrument}
-            onChange={v => setFilters(s => ({ ...s, instrument: v }))}
-            options={[{ label: 'All Symbols', value: '' }, ...symbolsList.map(s => ({ label: s, value: s }))]}
+            onChange={(v) => setFilters((s) => ({ ...s, instrument: v }))}
+            options={[
+              { label: "All Symbols", value: "" },
+              ...symbolsList.map((s) => ({ label: s, value: s })),
+            ]}
           />
           <Select
             label="All Strategies"
             value={filters.strategy}
-            onChange={v => setFilters(s => ({ ...s, strategy: v }))}
-            options={[{ label: 'All Strategies', value: '' }, ...strategiesList.map(s => ({ label: s, value: s }))]}
+            onChange={(v) => setFilters((s) => ({ ...s, strategy: v }))}
+            options={[
+              { label: "All Strategies", value: "" },
+              ...strategiesList.map((s) => ({ label: s, value: s })),
+            ]}
           />
           <label className="text-sm">
             <span className="block mb-1 text-slate-600">Year</span>
             <input
               type="number"
               value={filters.year}
-              onChange={e => setFilters(s => ({ ...s, year: e.target.value }))}
+              onChange={(e) =>
+                setFilters((s) => ({ ...s, year: e.target.value }))
+              }
               className="input"
             />
           </label>
@@ -376,134 +608,291 @@ const Trade: React.FC = () => {
       </section>
 
       {/* Tabs */}
-      <div className="flex items-center justify-between">
-        <div className="inline-flex bg-slate-100 rounded-lg p-1">
+      <div className="flex justify-between items-center">
+        <div className="inline-flex p-1 rounded-lg bg-slate-100">
           <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${activeTab === 'BUY' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
-            onClick={() => setActiveTab('BUY')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${
+              activeTab === "BUY"
+                ? "bg-white text-slate-900 shadow"
+                : "text-slate-600"
+            }`}
+            onClick={() => setActiveTab("BUY")}
           >
-            <span className="inline-flex items-center gap-2"><ShoppingCart className="h-4 w-4"/> Buy</span>
+            <span className="inline-flex gap-2 items-center">
+              <ShoppingCart className="w-4 h-4" /> Buy
+            </span>
           </button>
           <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${activeTab === 'SELL' ? 'bg-white text-slate-900 shadow' : 'text-slate-600'}`}
-            onClick={() => setActiveTab('SELL')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors subtle-hover ${
+              activeTab === "SELL"
+                ? "bg-white text-slate-900 shadow"
+                : "text-slate-600"
+            }`}
+            onClick={() => setActiveTab("SELL")}
           >
-            <span className="inline-flex items-center gap-2"><TrendingUp className="h-4 w-4"/> Sell</span>
+            <span className="inline-flex gap-2 items-center">
+              <TrendingUp className="w-4 h-4" /> Sell
+            </span>
           </button>
         </div>
-        <div className="hidden md:flex items-center gap-2 text-sm text-slate-500">
-          <ArrowRightLeft className="h-4 w-4"/>
-          <span>Last price • {activeTab === 'BUY' ? buySymbol : sellSymbol}: ₹{(demoPrices[activeTab === 'BUY' ? buySymbol : sellSymbol]?.price ?? 0).toFixed(2)}</span>
+        <div className="hidden gap-2 items-center text-sm md:flex text-slate-500">
+          <ArrowRightLeft className="w-4 h-4" />
+          <span>
+            Last price • {activeTab === "BUY" ? buySymbol : sellSymbol}: ₹
+            {(
+              demoPrices[activeTab === "BUY" ? buySymbol : sellSymbol]?.price ??
+              0
+            ).toFixed(2)}
+          </span>
         </div>
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm card-appear subtle-hover">
-        {activeTab === 'BUY' ? (
+      <div className="p-6 bg-white rounded-2xl border shadow-sm border-slate-200 card-appear subtle-hover">
+        {activeTab === "BUY" ? (
           <>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><ShoppingCart className="h-5 w-5"/> Purchase</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+            <h2 className="flex gap-2 items-center text-xl font-semibold text-slate-900">
+              <ShoppingCart className="w-5 h-5" /> Purchase
+            </h2>
+            <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-3 lg:grid-cols-6">
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Stock Symbol</label>
-                <input value={buySymbol} onChange={(e) => setBuySymbol(e.target.value.toUpperCase())} list="symbols" placeholder="e.g., RELIANCE" className="mt-1 input-muted" />
+                <input
+                  value={buySymbol}
+                  onChange={(e) => setBuySymbol(e.target.value.toUpperCase())}
+                  list="symbols"
+                  placeholder="e.g., RELIANCE"
+                  className="mt-1 input-muted"
+                />
                 <datalist id="symbols">
-                  {symbols.map(s => (<option key={s} value={s} />))}
+                  {symbols.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
                 </datalist>
               </div>
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Company Name</label>
-                <div className={`mt-1 ${buyShimmer ? 'shimmer' : 'input-muted'}`}>{buyName || '-'}</div>
+                <div
+                  className={`mt-1 ${buyShimmer ? "shimmer" : "input-muted"}`}
+                >
+                  {buyName || "-"}
+                </div>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Quantity</label>
-                <input type="number" min={0} value={buyQty} onChange={(e) => setBuyQty(Number(e.target.value))} className="mt-1 input" />
-                <div className="mt-2 flex gap-2">
-                  {[1,5,10,25].map(q => (
-                    <button key={q} onClick={() => setBuyQty(q)} className="chip subtle-hover">x{q}</button>
+                <input
+                  type="number"
+                  min={0}
+                  value={buyQty}
+                  onChange={(e) => setBuyQty(Number(e.target.value))}
+                  className="mt-1 input"
+                />
+                <div className="flex gap-2 mt-2">
+                  {[1, 5, 10, 25].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setBuyQty(q)}
+                      className="chip subtle-hover"
+                    >
+                      x{q}
+                    </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="text-sm text-slate-600">Price per Share</label>
-                <div className="mt-1 relative">
-                  <span className="money-prefix"><IndianRupee className="h-4 w-4"/></span>
-                  <input type="number" min={0} step={0.01} value={buyPrice} onChange={(e) => setBuyPrice(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+                <label className="text-sm text-slate-600">
+                  Price per Share
+                </label>
+                <div className="relative mt-1">
+                  <span className="money-prefix">
+                    <IndianRupee className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={buyPrice}
+                    onChange={(e) => setBuyPrice(Number(e.target.value))}
+                    className="py-2 pr-3 pl-9 w-full input"
+                  />
                 </div>
-                <div className="text-xs text-slate-500 mt-1">Real-time: ₹{(demoPrices[buySymbol]?.price ?? 0).toFixed(2)}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Real-time: ₹{(demoPrices[buySymbol]?.price ?? 0).toFixed(2)}
+                </div>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Order Type</label>
-                <select value={buyOrderType} onChange={(e) => setBuyOrderType(e.target.value as OrderType)} className="mt-1 input">
-                  {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
+                <select
+                  value={buyOrderType}
+                  onChange={(e) => setBuyOrderType(e.target.value as OrderType)}
+                  className="mt-1 input"
+                >
+                  {(["Market", "Limit", "Stop"] as OrderType[]).map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Total Cost</label>
-                <div className={`mt-1 ${buyShimmer ? 'shimmer' : 'input-muted'} flex items-center gap-1`}><IndianRupee className="h-4 w-4"/> {isFinite(totalBuy) ? `₹${totalBuy.toFixed(2)}` : '-'}</div>
+                <div
+                  className={`mt-1 ${
+                    buyShimmer ? "shimmer" : "input-muted"
+                  } flex items-center gap-1`}
+                >
+                  <IndianRupee className="w-4 h-4" />{" "}
+                  {isFinite(totalBuy) ? `₹${totalBuy.toFixed(2)}` : "-"}
+                </div>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-4">
-              <label className="inline-flex items-center gap-2 select-none">
+            <div className="flex justify-between items-center mt-4">
+              <label className="inline-flex gap-2 items-center select-none">
                 <input
                   type="checkbox"
                   checked={addToPortfolio}
                   onChange={(e) => setAddToPortfolio(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
+                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0"
                 />
                 <span className="text-slate-700">Add to Portfolio</span>
               </label>
-              <button disabled={!buySymbol || buyQty <= 0 || buyPrice <= 0} onClick={doBuy} className={`btn bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${(!buySymbol || buyQty <= 0 || buyPrice <= 0) ? '' : 'pulse-soft'}`}>
-                <CheckCircle2 className="h-4 w-4"/> Buy
+              <button
+                disabled={!buySymbol || buyQty <= 0 || buyPrice <= 0}
+                onClick={doBuy}
+                className={`btn bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${
+                  !buySymbol || buyQty <= 0 || buyPrice <= 0 ? "" : "pulse-soft"
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" /> Buy
               </button>
             </div>
           </>
         ) : (
           <>
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2"><TrendingUp className="h-5 w-5"/> Sell</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mt-4">
+            <h2 className="flex gap-2 items-center text-xl font-semibold text-slate-900">
+              <TrendingUp className="w-5 h-5" /> Sell
+            </h2>
+            <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-3 lg:grid-cols-6">
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Stock Symbol</label>
-                <select value={sellSymbol} onChange={(e) => setSellSymbol(e.target.value)} className="mt-1 input">
-                  {ownedSymbols.length ? ownedSymbols.map(s => <option key={s} value={s}>{s}</option>) : symbols.map(s => <option key={s} value={s}>{s}</option>)}
+                <select
+                  value={sellSymbol}
+                  onChange={(e) => setSellSymbol(e.target.value)}
+                  className="mt-1 input"
+                >
+                  {ownedSymbols.length
+                    ? ownedSymbols.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))
+                    : symbols.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
                 </select>
               </div>
               <div className="lg:col-span-2">
                 <label className="text-sm text-slate-600">Company Name</label>
-                <div className={`mt-1 ${sellShimmer ? 'shimmer' : 'input-muted'}`}>{sellName || '-'}</div>
+                <div
+                  className={`mt-1 ${sellShimmer ? "shimmer" : "input-muted"}`}
+                >
+                  {sellName || "-"}
+                </div>
               </div>
               <div>
-                <label className="text-sm text-slate-600">Quantity to Sell</label>
-                <input type="number" min={0} max={ownedQty} value={sellQty} onChange={(e) => setSellQty(Number(e.target.value))} className="mt-1 input" />
-                <div className="mt-2 flex gap-2">
-                  {[1,5,10].map(q => (
-                    <button key={q} onClick={() => setSellQty(Math.min(ownedQty, q))} className="chip subtle-hover">x{q}</button>
+                <label className="text-sm text-slate-600">
+                  Quantity to Sell
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  max={ownedQty}
+                  value={sellQty}
+                  onChange={(e) => setSellQty(Number(e.target.value))}
+                  className="mt-1 input"
+                />
+                <div className="flex gap-2 mt-2">
+                  {[1, 5, 10].map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setSellQty(Math.min(ownedQty, q))}
+                      className="chip subtle-hover"
+                    >
+                      x{q}
+                    </button>
                   ))}
-                  <button onClick={() => setSellQty(ownedQty)} className="chip subtle-hover">Max</button>
+                  <button
+                    onClick={() => setSellQty(ownedQty)}
+                    className="chip subtle-hover"
+                  >
+                    Max
+                  </button>
                 </div>
-                <div className="text-xs text-slate-500 mt-1">Owned: {ownedQty}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  Owned: {ownedQty}
+                </div>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Current Price</label>
-                <div className="mt-1 relative">
-                  <span className="money-prefix"><IndianRupee className="h-4 w-4"/></span>
-                  <input type="number" min={0} step={0.01} value={sellPrice} onChange={(e) => setSellPrice(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+                <div className="relative mt-1">
+                  <span className="money-prefix">
+                    <IndianRupee className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={sellPrice}
+                    onChange={(e) => setSellPrice(Number(e.target.value))}
+                    className="py-2 pr-3 pl-9 w-full input"
+                  />
                 </div>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Order Type</label>
-                <select value={sellOrderType} onChange={(e) => setSellOrderType(e.target.value as OrderType)} className="mt-1 input">
-                  {(['Market','Limit','Stop'] as OrderType[]).map(o => <option key={o} value={o}>{o}</option>)}
+                <select
+                  value={sellOrderType}
+                  onChange={(e) =>
+                    setSellOrderType(e.target.value as OrderType)
+                  }
+                  className="mt-1 input"
+                >
+                  {(["Market", "Limit", "Stop"] as OrderType[]).map((o) => (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="text-sm text-slate-600">Sale Amount</label>
-                <div className={`mt-1 ${sellShimmer ? 'shimmer' : 'input-muted'} flex items-center gap-1`}><IndianRupee className="h-4 w-4"/> {isFinite(totalSell) ? `₹${totalSell.toFixed(2)}` : '-'}</div>
+                <div
+                  className={`mt-1 ${
+                    sellShimmer ? "shimmer" : "input-muted"
+                  } flex items-center gap-1`}
+                >
+                  <IndianRupee className="w-4 h-4" />{" "}
+                  {isFinite(totalSell) ? `₹${totalSell.toFixed(2)}` : "-"}
+                </div>
               </div>
             </div>
-            <div className="flex items-center justify-between mt-4">
-              <button onClick={() => setSellQty(ownedQty)} className="btn bg-slate-100 text-slate-700 subtle-hover">Sell All</button>
-              <button disabled={sellQty <= 0 || sellQty > ownedQty} onClick={doSell} className={`btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${(sellQty <= 0 || sellQty > ownedQty) ? '' : 'pulse-soft'}`}>
-                <CheckCircle2 className="h-4 w-4"/> Sell
+            <div className="flex justify-between items-center mt-4">
+              <button
+                onClick={() => setSellQty(ownedQty)}
+                className="btn bg-slate-100 text-slate-700 subtle-hover"
+              >
+                Sell All
+              </button>
+              <button
+                disabled={sellQty <= 0 || sellQty > ownedQty}
+                onClick={doSell}
+                className={`btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 flex items-center gap-2 subtle-hover ${
+                  sellQty <= 0 || sellQty > ownedQty ? "" : "pulse-soft"
+                }`}
+              >
+                <CheckCircle2 className="w-4 h-4" /> Sell
               </button>
             </div>
           </>
@@ -512,13 +901,29 @@ const Trade: React.FC = () => {
 
       {/* Confirmation Dialog */}
       {showConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-800 p-6 shadow-xl modal-appear">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">Confirm {showConfirm.action === 'BUY' ? 'Purchase' : 'Sale'}</h3>
-            <p className="text-slate-700 dark:text-slate-300 text-sm">{showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹{Number(showConfirm.payload.price).toFixed(2)} • {showConfirm.payload.orderType}</p>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowConfirm(null)} className="btn bg-slate-100 text-slate-700 subtle-hover">Cancel</button>
-              <button onClick={confirm} className="btn bg-blue-600 text-white hover:bg-blue-700 subtle-hover">Confirm</button>
+        <div className="flex fixed inset-0 z-50 justify-center items-center p-4 bg-black/50">
+          <div className="p-6 w-full max-w-md rounded-2xl border shadow-xl backdrop-blur bg-white/90 border-slate-200 modal-appear">
+            <h3 className="mb-2 text-lg font-semibold text-slate-900">
+              Confirm {showConfirm.action === "BUY" ? "Purchase" : "Sale"}
+            </h3>
+            <p className="text-sm text-slate-700">
+              {showConfirm.payload.qty} x {showConfirm.payload.symbol} at ₹
+              {Number(showConfirm.payload.price).toFixed(2)} •{" "}
+              {showConfirm.payload.orderType}
+            </p>
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                onClick={() => setShowConfirm(null)}
+                className="btn bg-slate-100 text-slate-700 subtle-hover"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirm}
+                className="text-white bg-blue-600 btn hover:bg-blue-700 subtle-hover"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
@@ -526,9 +931,9 @@ const Trade: React.FC = () => {
 
       {/* Success Toast */}
       {success && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <div className="px-4 py-3 rounded-xl bg-emerald-600 text-white shadow-lg flex items-center gap-2 toast-slide">
-            <CheckCircle2 className="h-5 w-5"/> {success}
+        <div className="fixed right-6 bottom-6 z-50">
+          <div className="flex gap-2 items-center px-4 py-3 text-white bg-emerald-600 rounded-xl shadow-lg toast-slide">
+            <CheckCircle2 className="w-5 h-5" /> {success}
           </div>
         </div>
       )}
@@ -536,20 +941,30 @@ const Trade: React.FC = () => {
       {/* Journal-style Trade Form Modal */}
       {showFormModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center min-h-screen p-4 md:p-8 overscroll-none">
-          <div className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-2xl" onClick={() => setShowFormModal(false)} />
-          <div className="relative w-full max-w-full md:max-w-3xl mx-0 my-6 md:my-10">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
-              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-800">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Add Trading Day</h3>
-                <button onClick={() => setShowFormModal(false)} className="px-2 py-1 rounded-lg hover:bg-slate-100">✕</button>
+          <div
+            className="absolute inset-0 w-full h-full backdrop-blur-2xl bg-slate-950/60"
+            onClick={() => setShowFormModal(false)}
+          />
+          <div className="relative mx-0 my-6 w-full max-w-3xl md:my-10">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-h-[92vh] overflow-auto no-scrollbar">
+              <div className="flex justify-between items-center p-4 border-b border-slate-200">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Add Trading Day
+                </h3>
+                <button
+                  onClick={() => setShowFormModal(false)}
+                  className="px-2 py-1 rounded-lg hover:bg-slate-100"
+                >
+                  ✕
+                </button>
               </div>
               <div className="p-4">
                 <TradingDayForm
                   initialDate={draftDate}
                   onSaved={() => {
                     setShowFormModal(false);
-                    setSuccess('Trading day added');
-                    setTimeout(() => setSuccess(''), 2000);
+                    setSuccess("Trading day added");
+                    setTimeout(() => setSuccess(""), 2000);
                   }}
                   onCancel={() => setShowFormModal(false)}
                 />
@@ -559,31 +974,78 @@ const Trade: React.FC = () => {
         </div>
       )}
       {/* All Trades from Journal */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm card-appear subtle-hover">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">All Trades</h2>
-          <button onClick={() => setTick(v => v + 1)} className="btn bg-slate-100 text-slate-700 subtle-hover">Refresh</button>
+      <div className="p-6 bg-white rounded-2xl border shadow-sm border-slate-200 card-appear subtle-hover">
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="text-xl font-semibold text-slate-900">All Trades</h2>
+          <button
+            onClick={() => setTick((v) => v + 1)}
+            className="btn bg-slate-100 text-slate-700 subtle-hover"
+          >
+            Refresh
+          </button>
         </div>
         <div className="flex justify-end mb-3">
-          <button onClick={exportCSV} className="btn bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-900/40 subtle-hover">Export CSV</button>
+          <button
+            onClick={exportCSV}
+            className="text-white bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg btn shadow-indigo-900/40 subtle-hover"
+          >
+            Export CSV
+          </button>
         </div>
         <div className="overflow-auto no-scrollbar max-h-[70vh] overscroll-contain">
           <table className="min-w-full text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-50/80 dark:bg-slate-800/60 backdrop-blur-sm">
+            <thead className="sticky top-0 z-10 backdrop-blur-sm bg-slate-50/80">
               <tr className="text-left border-b border-slate-200">
-                {(['Date','Instrument','Side','Entry','Exit','Qty','P&L','Strategy','Tags','Notes'] as const).map((label, idx) => {
-                  const keyMap: Record<number, SortKey | undefined> = {0:'date',1:'instrument',2:'side',3:'entryPrice',4:'exitPrice',5:'quantity',6:'pnl'};
+                {(
+                  [
+                    "Date",
+                    "Instrument",
+                    "Side",
+                    "Entry",
+                    "Exit",
+                    "Qty",
+                    "P&L",
+                    "Strategy",
+                    "Tags",
+                    "Notes",
+                  ] as const
+                ).map((label, idx) => {
+                  const keyMap: Record<number, SortKey | undefined> = {
+                    0: "date",
+                    1: "instrument",
+                    2: "side",
+                    3: "entryPrice",
+                    4: "exitPrice",
+                    5: "quantity",
+                    6: "pnl",
+                  };
                   const key = keyMap[idx];
                   return (
                     <th key={label} className="py-2 pr-4">
                       {key ? (
                         <button
-                          className="inline-flex items-center gap-1 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
-                          onClick={() => setSort(s => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }))}
+                          className="inline-flex gap-1 items-center text-slate-700 hover:text-slate-900"
+                          onClick={() =>
+                            setSort((s) => ({
+                              key,
+                              dir:
+                                s.key === key && s.dir === "asc"
+                                  ? "desc"
+                                  : "asc",
+                            }))
+                          }
                         >
                           <span>{label}</span>
-                          <span className={`text-xs ${sort.key === key ? 'opacity-100' : 'opacity-30'}`}>
-                            {sort.key === key ? (sort.dir === 'asc' ? '▲' : '▼') : '▲'}
+                          <span
+                            className={`text-xs ${
+                              sort.key === key ? "opacity-100" : "opacity-30"
+                            }`}
+                          >
+                            {sort.key === key
+                              ? sort.dir === "asc"
+                                ? "▲"
+                                : "▼"
+                              : "▲"}
                           </span>
                         </button>
                       ) : (
@@ -595,41 +1057,68 @@ const Trade: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {sorted.map(t => {
-                const dir = t.side === 'Buy' || t.side === 'Long' ? 1 : -1;
+              {sorted.map((t) => {
+                const dir = t.side === "Buy" || t.side === "Long" ? 1 : -1;
                 const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
                 return (
-                  <tr key={t.id} className="border-b border-slate-100 odd:bg-white even:bg-slate-50 hover:bg-slate-100/80 transition-colors">
-                    <td className="py-2 pr-4 whitespace-nowrap">{new Date(t.date).toISOString().slice(0, 10)}</td>
+                  <tr
+                    key={t.id}
+                    className="border-b transition-colors border-slate-100 odd:bg-white even:bg-slate-50 hover:bg-slate-100/80"
+                  >
+                    <td className="py-2 pr-4 whitespace-nowrap">
+                      {t.sheetTimestamp
+                        ? t.sheetTimestamp
+                        : new Date(t.date).toLocaleDateString()}
+                    </td>
                     <td className="py-2 pr-4">{t.instrument}</td>
                     <td className="py-2 pr-4">{t.side}</td>
                     <td className="py-2 pr-4">{t.entryPrice}</td>
                     <td className="py-2 pr-4">{t.exitPrice}</td>
                     <td className="py-2 pr-4">{t.quantity}</td>
                     <td className="py-2 pr-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${pnl>=0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          pnl >= 0
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      >
                         {pnl.toFixed(2)}
                       </span>
                     </td>
-                    <td className="py-2 pr-4">{t.strategy || '—'}</td>
+                    <td className="py-2 pr-4">{t.strategy || "—"}</td>
                     <td className="py-2 pr-4">
                       <span className="flex flex-wrap gap-1">
-                        {(t.tags||[]).map((tag, i) => (
-                          <span key={`${tag}-${i}`} className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs">{tag}</span>
+                        {(t.tags || []).map((tag, i) => (
+                          <span
+                            key={`${tag}-${i}`}
+                            className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs"
+                          >
+                            {tag}
+                          </span>
                         ))}
-                        {(!t.tags || !t.tags.length) && <span className="text-slate-400">—</span>}
+                        {(!t.tags || !t.tags.length) && (
+                          <span className="text-slate-400">—</span>
+                        )}
                       </span>
                     </td>
-                    <td className="py-2 pr-4 max-w-[300px] truncate" title={t.notes || ''}>{t.notes || '—'}</td>
+                    <td
+                      className="py-2 pr-4 max-w-[300px] truncate"
+                      title={t.notes || ""}
+                    >
+                      {t.notes || "—"}
+                    </td>
                   </tr>
                 );
               })}
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={10} className="py-6">
-                    <div className="mx-auto max-w-lg text-center bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                    <div className="p-6 mx-auto max-w-lg text-center bg-white rounded-2xl border shadow-sm border-slate-200">
                       <div className="text-slate-700">No trades yet.</div>
-                      <div className="text-slate-500 text-sm mt-1">Add trades in the Journal page, then refresh.</div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        Add trades in the Journal page, then refresh.
+                      </div>
                     </div>
                   </td>
                 </tr>
@@ -645,19 +1134,17 @@ const Trade: React.FC = () => {
 // ---------------- Trading Day Form (Popup) ----------------
 type TradingDayRecord = {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string; // datetime-local
   tradesCount: number;
   symbols: string[];
-  result: 'profit' | 'loss' | 'breakeven' | 'open';
+  result: "profit" | "loss" | "breakeven";
   netMtm: number; // before brokerage
   brokerage: number;
   strategies: string[];
   notes?: string;
   // single trade snapshot (optional)
-
-  
   instrument?: string;
-  side?: 'Buy'|'Sell'|'Long'|'Short';
+  side?: "Buy" | "Sell" | "Long" | "Short";
   entryPrice?: number;
   exitPrice?: number;
   quantity?: number;
@@ -666,33 +1153,50 @@ type TradingDayRecord = {
 };
 
 const strategiesPreset = [
-  'Breakout','Reversal','Scalping','Trend Following','Swing Trading','Momentum',
-  'Mean Reversion','Gap Trading','News Based','Technical Analysis','Fundamental Analysis','Other'
+  "Breakout",
+  "Reversal",
+  "Scalping",
+  "Trend Following",
+  "Swing Trading",
+  "Momentum",
+  "Mean Reversion",
+  "Gap Trading",
+  "News Based",
+  "Technical Analysis",
+  "Fundamental Analysis",
+  "Other",
 ];
 
-const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCancel?: () => void }>
-  = ({ initialDate, onSaved, onCancel }) => {
-  const [date, setDate] = useState<string>(initialDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
+const TradingDayForm: React.FC<{
+  initialDate?: string;
+  onSaved: () => void;
+  onCancel?: () => void;
+}> = ({ initialDate, onSaved, onCancel }) => {
+  const [date, setDate] = useState<string>(
+    initialDate ?? new Date().toISOString().slice(0, 16)
+  );
   const [tradesCount, setTradesCount] = useState<number>(0);
   const [symbols, setSymbols] = useState<string[]>([]);
-  const [symInput, setSymInput] = useState('');
-  const [result, setResult] = useState<'profit'|'loss'|'breakeven'|'open'>('profit');
+  const [symInput, setSymInput] = useState("");
+  const [result, setResult] = useState<"profit" | "loss" | "breakeven">(
+    "profit"
+  );
   const [netMtm, setNetMtm] = useState<number>(0);
   const [brokerage, setBrokerage] = useState<number>(0.1);
   const [strategies, setStrategies] = useState<string[]>([]);
-  const [customStrategy, setCustomStrategy] = useState('');
-  const [notes, setNotes] = useState('');
+  const [customStrategy, setCustomStrategy] = useState("");
+  const [notes, setNotes] = useState("");
   // Single-trade row fields
-  const [instrument, setInstrument] = useState('');
-  const [side, setSide] = useState<'Buy'|'Sell'|'Long'|'Short'>('Buy');
+  const [instrument, setInstrument] = useState("");
+  const [side, setSide] = useState<"Buy" | "Sell" | "Long" | "Short">("Buy");
   const [entryPrice, setEntryPrice] = useState<number>(0);
   const [exitPrice, setExitPrice] = useState<number>(0);
   const [quantity, setQuantity] = useState<number>(1);
-  const [strategy, setStrategy] = useState('');
-  const [tagsStr, setTagsStr] = useState('');
+  const [strategy, setStrategy] = useState("");
+  const [tagsStr, setTagsStr] = useState("");
 
   const pnl = useMemo(() => {
-    const dir = side === 'Buy' || side === 'Long' ? 1 : -1;
+    const dir = side === "Buy" || side === "Long" ? 1 : -1;
     const v = (exitPrice - entryPrice) * dir * (quantity || 0);
     return isFinite(v) ? v : 0;
   }, [entryPrice, exitPrice, quantity, side]);
@@ -700,30 +1204,32 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
   const addSymbol = () => {
     const v = symInput.trim().toUpperCase();
     if (!v) return;
-    if (!symbols.includes(v)) setSymbols(prev => [...prev, v]);
-    setSymInput('');
+    if (!symbols.includes(v)) setSymbols((prev) => [...prev, v]);
+    setSymInput("");
   };
   const onSymKey: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       addSymbol();
     }
   };
   const toggleStrategy = (s: string) => {
-    setStrategies(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+    setStrategies((prev) =>
+      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+    );
   };
   const addCustomStrategy = () => {
     const v = customStrategy.trim();
     if (!v) return;
-    if (!strategies.includes(v)) setStrategies(p => [...p, v]);
-    setCustomStrategy('');
+    if (!strategies.includes(v)) setStrategies((p) => [...p, v]);
+    setCustomStrategy("");
   };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!date) return;
     const rec: TradingDayRecord = {
-      id: Math.random().toString(36).slice(2,9),
+      id: Math.random().toString(36).slice(2, 9),
       date,
       tradesCount: Number(tradesCount) || 0,
       symbols,
@@ -738,71 +1244,210 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       exitPrice: Number(exitPrice) || 0,
       quantity: Number(quantity) || 0,
       strategy: strategy || undefined,
-      tags: tagsStr.split(',').map(s=>s.trim()).filter(Boolean),
+      tags: tagsStr
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
     };
     try {
-      const key = 'day_logs_v1';
-      const arr: TradingDayRecord[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const key = "day_logs_v1";
+      const arr: TradingDayRecord[] = JSON.parse(
+        localStorage.getItem(key) || "[]"
+      );
       arr.unshift(rec);
       localStorage.setItem(key, JSON.stringify(arr));
     } catch {}
-    // Fire-and-forget sync to Google Sheets (Apps Script)
-    void syncTradingDayToSheet(rec);
     onSaved();
   };
 
   return (
-    <form onSubmit={submit} className="space-y-4 sm:space-y-5 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 p-4 sm:p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm max-w-full overflow-hidden">
-      <div className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mb-3 sm:mb-4">Add Trading Day</div>
-
+    <form onSubmit={submit} className="space-y-5">
       {/* Date */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><CalendarDays className="h-4 w-4"/> Trading Date *</span>
-        <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="input w-full" />
+        <span className="block mb-1 text-slate-700">Trading Date *</span>
+        <input
+          type="datetime-local"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="input"
+        />
       </label>
 
       {/* Number of trades */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><ListOrdered className="h-4 w-4"/> Number of Trades</span>
-        <input type="number" value={tradesCount} onChange={e=>setTradesCount(Number(e.target.value))} className="input w-full" />
+        <span className="block mb-1 text-slate-700">Number of Trades</span>
+        <input
+          type="number"
+          value={tradesCount}
+          onChange={(e) => setTradesCount(Number(e.target.value))}
+          className="input"
+        />
       </label>
 
       {/* Symbols tag input */}
       <div className="space-y-2">
-        <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><Tags className="h-4 w-4"/> Symbols Traded *</div>
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
-          {symbols.map(s => (
-            <span key={s} className="px-2 py-1 sm:px-2.5 sm:py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs">
+        <div className="text-sm text-slate-700">Symbols Traded *</div>
+        <div className="flex flex-wrap gap-2">
+          {symbols.map((s) => (
+            <span
+              key={s}
+              className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs"
+            >
               {s}
-              <button type="button" onClick={()=>setSymbols(prev=>prev.filter(x=>x!==s))} className="ml-1 text-slate-500 hover:text-red-600 text-sm">×</button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSymbols((prev) => prev.filter((x) => x !== s))
+                }
+                className="ml-1 text-slate-500 hover:text-red-600"
+              >
+                ×
+              </button>
             </span>
           ))}
         </div>
         <input
           value={symInput}
-          onChange={e=>setSymInput(e.target.value)}
+          onChange={(e) => setSymInput(e.target.value)}
           onKeyDown={onSymKey}
           placeholder="Type symbol name (e.g., TCS, GOLD)..."
-          className="input w-full"
+          className="input"
         />
-        <div className="text-xs text-slate-500">Press Enter or comma to add.</div>
+        <div className="text-xs text-slate-500">
+          Press Enter or comma to add.
+        </div>
+      </div>
+
+      {/* Single trade snapshot (optional) */}
+      <div className="space-y-2">
+        <div className="text-sm font-medium text-slate-800">
+          Trade Snapshot (optional)
+        </div>
+        <div className="grid grid-cols-1 gap-3 items-end md:grid-cols-8">
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Instrument</span>
+            <input
+              value={instrument}
+              onChange={(e) => setInstrument(e.target.value)}
+              className="input"
+              placeholder="e.g., RELIANCE"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Side</span>
+            <select
+              value={side}
+              onChange={(e) => setSide(e.target.value as any)}
+              className="input"
+            >
+              {["Buy", "Sell", "Long", "Short"].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Entry</span>
+            <input
+              type="number"
+              step={0.01}
+              value={entryPrice}
+              onChange={(e) => setEntryPrice(Number(e.target.value))}
+              className="input"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Exit</span>
+            <input
+              type="number"
+              step={0.01}
+              value={exitPrice}
+              onChange={(e) => setExitPrice(Number(e.target.value))}
+              className="input"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="block mb-1 text-slate-600">Qty</span>
+            <input
+              type="number"
+              value={quantity}
+              onChange={(e) => setQuantity(Number(e.target.value))}
+              className="input"
+            />
+          </label>
+          <div className="text-xs md:col-span-1">
+            <div className="mb-1 text-slate-600">P&L</div>
+            <div
+              className={`px-3 py-2 rounded-xl border text-center ${
+                pnl >= 0
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}
+            >
+              {pnl.toFixed(2)}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Strategy</span>
+            <input
+              value={strategy}
+              onChange={(e) => setStrategy(e.target.value)}
+              className="input"
+              placeholder="e.g., Breakout"
+            />
+          </label>
+          <label className="text-xs md:col-span-2">
+            <span className="block mb-1 text-slate-600">Tags</span>
+            <input
+              value={tagsStr}
+              onChange={(e) => setTagsStr(e.target.value)}
+              className="input"
+              placeholder="comma separated"
+            />
+          </label>
+        </div>
       </div>
 
       {/* Trading Result segmented */}
       <div className="space-y-2">
-        <div className="text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2"><BarChart className="h-4 w-4"/> Trading Result</div>
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div className="text-sm text-slate-700">Trading Result</div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
-            {k:'profit', label:'Profit', cls:'border-emerald-600 text-emerald-700', bg:'bg-emerald-600 text-white'},
-            {k:'loss', label:'Loss', cls:'border-red-600 text-red-700', bg:'bg-red-600 text-white'},
-            {k:'open', label:'Open Trade', cls:'border-blue-600 text-blue-700', bg:'bg-blue-600 text-white'},
-            {k:'breakeven', label:'Breakeven', cls:'border-yellow-600 text-yellow-700', bg:'bg-yellow-600 text-white'},
-          ].map((b:any) => (
+            {
+              k: "profit",
+              label: "Profit",
+              cls: "border-emerald-600 text-emerald-700",
+              bg: "bg-emerald-600 text-white",
+            },
+            {
+              k: "loss",
+              label: "Loss",
+              cls: "border-red-600 text-red-700",
+              bg: "bg-red-600 text-white",
+            },
+            {
+              k: "open",
+              label: "Open Trade",
+              cls: "border-blue-600 text-blue-700",
+              bg: "bg-blue-600 text-white",
+            },
+            {
+              k: "breakeven",
+              label: "Breakeven",
+              cls: "border-yellow-600 text-yellow-700",
+              bg: "bg-yellow-600 text-white",
+            },
+          ].map((b: any) => (
             <button
               key={b.k}
               type="button"
-              onClick={()=>setResult(b.k)}
-              className={`px-3 py-2 sm:px-4 sm:py-2 rounded-lg sm:rounded-xl border text-xs sm:text-sm font-medium transition-colors ${result===b.k ? b.bg : `bg-white dark:bg-slate-800 ${b.cls}`}`}
+              onClick={() => setResult(b.k)}
+              className={`px-4 py-2 rounded-xl border ${
+                result === b.k ? b.bg : `bg-white ${b.cls}`
+              }`}
             >
               {b.label}
             </button>
@@ -811,38 +1456,103 @@ const TradingDayForm: React.FC<{ initialDate?: string; onSaved: () => void; onCa
       </div>
 
       {/* Net MTM and Brokerage */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label className="block text-sm">
-          <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><IndianRupee className="h-4 w-4"/> Net MTM Amount *</span>
+          <span className="block mb-1 text-slate-700">Net MTM Amount *</span>
           <div className="relative">
             <span className="money-prefix">₹</span>
-            <input type="number" step={0.01} value={netMtm} onChange={e=>setNetMtm(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+            <input
+              type="number"
+              step={0.01}
+              value={netMtm}
+              onChange={(e) => setNetMtm(Number(e.target.value))}
+              className="py-2 pr-3 pl-9 w-full input"
+            />
           </div>
-          <div className="text-xs text-slate-500 mt-1">Enter the gross profit amount (before brokerage deduction)</div>
+          <div className="mt-1 text-xs text-slate-500">
+            Enter the gross profit amount (before brokerage deduction)
+          </div>
         </label>
         <label className="block text-sm">
-          <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><Wallet className="h-4 w-4"/> Brokerage Charges *</span>
+          <span className="block mb-1 text-slate-700">Brokerage Charges *</span>
           <div className="relative">
             <span className="money-prefix">₹</span>
-            <input type="number" step={0.01} value={brokerage} onChange={e=>setBrokerage(Number(e.target.value))} className="w-full pl-9 pr-3 py-2 input" />
+            <input
+              type="number"
+              step={0.01}
+              value={brokerage}
+              onChange={(e) => setBrokerage(Number(e.target.value))}
+              className="py-2 pr-3 pl-9 w-full input"
+            />
           </div>
-          <div className="text-xs text-slate-500 mt-1">Enter total charges including brokerage, taxes, and other fees</div>
+          <div className="mt-1 text-xs text-slate-500">
+            Enter total charges including brokerage, taxes, and other fees
+          </div>
         </label>
+      </div>
+
+      {/* Strategies */}
+      <div className="space-y-2">
+        <div className="text-sm text-slate-700">Strategies Used</div>
+        <div className="flex flex-wrap gap-2">
+          {strategiesPreset.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggleStrategy(s)}
+              className={`px-3 py-1.5 rounded-full text-sm border ${
+                strategies.includes(s)
+                  ? "bg-slate-900 text-white border-slate-900"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+          <div className="inline-flex gap-2 items-center">
+            <input
+              value={customStrategy}
+              onChange={(e) => setCustomStrategy(e.target.value)}
+              placeholder="Add custom strategy..."
+              className="px-3 py-1.5 rounded-full border border-slate-300 text-sm"
+            />
+            <button
+              type="button"
+              onClick={addCustomStrategy}
+              className="text-sm btn-secondary"
+            >
+              Add
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Notes */}
       <label className="block text-sm">
-        <span className="block mb-1 text-slate-700 dark:text-slate-300 flex items-center gap-2"><FileText className="h-4 w-4"/> Notes (Optional)</span>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} rows={3} className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus-ring" placeholder="Market conditions, key observations, lessons learned..." />
+        <span className="block mb-1 text-slate-700">Notes (Optional)</span>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={4}
+          className="px-3 py-2 w-full bg-white rounded-xl border border-slate-300 focus-ring"
+          placeholder="Market conditions, key observations, lessons learned..."
+        />
       </label>
 
-      <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-slate-200 dark:border-slate-700">
+      <div className="flex gap-3 justify-end items-center pt-2 border-t border-slate-200">
         {onCancel && (
-          <button type="button" onClick={onCancel} className="btn bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 w-full sm:w-auto">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="btn bg-slate-100 text-slate-700 subtle-hover"
+          >
             Cancel
           </button>
         )}
-        <button type="submit" className="btn bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-lg shadow-blue-500/20 w-full sm:w-auto">
+        <button
+          type="submit"
+          className="text-white bg-emerald-600 btn hover:bg-emerald-700"
+        >
           Add Trading Day
         </button>
       </div>

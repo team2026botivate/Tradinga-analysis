@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { addTrade, clearTrades, computeMetrics, Trade } from "../store/trades";
+import {
+  addTrade,
+  updateTrade,
+  clearTrades,
+  computeMetrics,
+  Trade,
+} from "../store/trades";
 import { useTheme } from "../context/ThemeContext";
 import Select from "./ui/Select";
 import FilterPanel from "./FilterPanel";
@@ -12,7 +18,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { FaDownload } from "react-icons/fa";
+import { FaDownload, FaEdit } from "react-icons/fa";
 import { syncTradeToSheet, fetchTradesFromSheet } from "../lib/sheets";
 
 const Journal: React.FC = () => {
@@ -34,6 +40,8 @@ const Journal: React.FC = () => {
     date: string;
     pnl: number;
   } | null>(null);
+
+  const [editTrade, setEditTrade] = useState<Trade | undefined>(undefined);
 
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -617,8 +625,10 @@ const Journal: React.FC = () => {
             <div className="relative w-full max-w-3xl max-h-[90vh] bg-white dark:bg-slate-900 rounded-xl shadow-2xl overflow-hidden">
               <TradeForm
                 initialDate={draftDate}
+                editTrade={editTrade}
                 onSaved={async () => {
                   setShowFormModal(false);
+                  setEditTrade(undefined);
                   const ctrl = new AbortController();
                   try {
                     console.log("[Journal] refresh after save start");
@@ -642,6 +652,7 @@ const Journal: React.FC = () => {
                 onCancel={() => {
                   setForceTick((v) => v + 1);
                   setShowFormModal(false);
+                  setEditTrade(undefined);
                 }}
               />
             </div>
@@ -726,7 +737,6 @@ const Journal: React.FC = () => {
                   <tr className="text-left border-b border-slate-200 dark:border-slate-700">
                     {[
                       "Sl no",
-                      "Timestamp",
                       "Entry date",
                       "Exit date",
                       "Instrument",
@@ -763,14 +773,17 @@ const Journal: React.FC = () => {
                         : pnl > 0
                         ? "Win"
                         : "Loss";
+                    const isOpen = !t.exitDate;
+                    const displayPnl = isOpen ? null : pnl;
+                    const displayResult = isOpen ? "Open" : result;
                     const sideColor =
                       t.side === "Buy" || t.side === "Long"
                         ? "text-emerald-600 dark:text-emerald-400"
                         : "text-red-600 dark:text-red-400";
                     const resultColor =
-                      result === "Win"
+                      displayResult === "Win"
                         ? "text-emerald-600 dark:text-emerald-400"
-                        : result === "Loss"
+                        : displayResult === "Loss"
                         ? "text-red-600 dark:text-red-400"
                         : "text-slate-600 dark:text-slate-300";
                     return (
@@ -780,9 +793,6 @@ const Journal: React.FC = () => {
                       >
                         <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
                           {idx + 1}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-900 dark:text-slate-200">
-                          {new Date(t.date).toLocaleTimeString()}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-slate-900 dark:text-slate-200">
                           {new Date(t.date).toLocaleDateString()}
@@ -807,19 +817,24 @@ const Journal: React.FC = () => {
                         </td>
                         <td
                           className={`py-3 px-4 font-medium ${
-                            pnl >= 0
+                            displayPnl === null
+                              ? "text-slate-600 dark:text-slate-400"
+                              : displayPnl >= 0
                               ? "text-emerald-600 dark:text-emerald-400"
                               : "text-red-600 dark:text-red-400"
                           }`}
                         >
-                          {pnl >= 0 ? "+" : ""}
-                          {pnl.toFixed(2)}
+                          {displayPnl === null
+                            ? "-"
+                            : `${
+                                displayPnl >= 0 ? "+" : ""
+                              }${displayPnl.toFixed(2)}`}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                           {t.strategy || "-"}
                         </td>
                         <td className={`px-4 py-3 font-medium ${resultColor}`}>
-                          {result}
+                          {displayResult}
                         </td>
                         <td className="px-4 py-3 text-slate-900 dark:text-slate-200">
                           {t.stopLoss != null ? t.stopLoss.toFixed(2) : "-"}
@@ -836,7 +851,19 @@ const Journal: React.FC = () => {
                             : "-"}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
-                          {t.notes || "-"}
+                          <div className="flex justify-between items-center">
+                            <span>{t.notes || "-"}</span>
+                            <button
+                              onClick={() => {
+                                setEditTrade(t);
+                                setShowFormModal(true);
+                              }}
+                              className="ml-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+                              title="Edit trade"
+                            >
+                              <FaEdit />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -918,9 +945,9 @@ const Card: React.FC<{
 const TradeForm: React.FC<{
   onSaved: () => void;
   initialDate?: string;
-  initialPnl?: number;
   onCancel?: () => void;
-}> = ({ onSaved, initialDate, initialPnl, onCancel }) => {
+  editTrade?: Trade;
+}> = ({ onSaved, initialDate, onCancel, editTrade }) => {
   const [form, setForm] = useState<Partial<Trade>>({
     date: initialDate ?? new Date().toISOString().slice(0, 10),
     instrument: "",
@@ -939,6 +966,7 @@ const TradeForm: React.FC<{
     tags: [],
   });
   const [fileName, setFileName] = useState<string>("");
+  const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -961,9 +989,13 @@ const TradeForm: React.FC<{
       case "entryPrice":
         return value <= 0 ? "Entry price must be greater than 0" : "";
       case "exitPrice":
-        return value <= 0 ? "Exit price must be greater than 0" : "";
+        return selectedResult === "open"
+          ? ""
+          : value <= 0
+          ? "Exit price must be greater than 0"
+          : "";
       case "quantity":
-        return value <= 0 ? "Quantity must be greater than 0" : "";
+        return value < 1 ? "Quantity must be greater than 0" : "";
       default:
         return "";
     }
@@ -978,22 +1010,29 @@ const TradeForm: React.FC<{
     }
   };
 
-  // Pre-fill form with P&L data if provided
+  // Pre-fill form with editTrade data
   useEffect(() => {
-    if (initialPnl !== undefined) {
-      // If we have a P&L amount, set entry and exit prices to reflect it
-      // For simplicity, assume entry price of 100 and calculate exit based on P&L
-      const entryPrice = 100;
-      const quantity = 1;
-      const exitPrice = entryPrice + initialPnl / quantity;
-      setForm((prev) => ({
-        ...prev,
-        entryPrice,
-        exitPrice,
-        quantity,
-      }));
+    if (editTrade) {
+      setForm({
+        date: editTrade.date,
+        exitDate: editTrade.exitDate,
+        instrument: editTrade.instrument,
+        side: editTrade.side,
+        entryPrice: editTrade.entryPrice,
+        exitPrice: editTrade.exitPrice,
+        quantity: editTrade.quantity,
+        stopLoss: editTrade.stopLoss,
+        takeProfit: editTrade.takeProfit,
+        riskAmount: editTrade.riskAmount,
+        riskPercent: editTrade.riskPercent,
+        strategy: editTrade.strategy,
+        entryReason: editTrade.entryReason,
+        exitReason: editTrade.exitReason,
+        notes: editTrade.notes,
+        tags: editTrade.tags,
+      });
     }
-  }, [initialPnl]);
+  }, [editTrade]);
 
   const strategiesPreset = [
     "Breakout",
@@ -1012,17 +1051,23 @@ const TradeForm: React.FC<{
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.date || !form.instrument || saving) return;
+    if (!form.date || !form.instrument || saving || submitted) return;
+    setSubmitted(true);
     setSaving(true);
-    const id = Math.random().toString(36).slice(2, 9);
+    const id = editTrade
+      ? editTrade.id
+      : Math.random().toString(36).slice(2, 9);
     const trade: Trade = {
       id,
       date: form.date!,
-      exitDate: form.exitDate,
+      exitDate: selectedResult === "open" ? undefined : form.exitDate,
       instrument: form.instrument!,
       side: (form.side as any) ?? "Buy",
       entryPrice: Number(form.entryPrice) || 0,
-      exitPrice: Number(form.exitPrice) || 0,
+      exitPrice:
+        selectedResult === "open"
+          ? Number(form.entryPrice) || 0
+          : Number(form.exitPrice) || 0,
       quantity: Number(form.quantity) || 1,
       stopLoss:
         form.stopLoss != null && form.stopLoss !== undefined
@@ -1042,14 +1087,24 @@ const TradeForm: React.FC<{
           : undefined,
       strategy: form.strategy || "",
       entryReason: form.entryReason || "",
-      exitReason: form.exitReason || "",
+      exitReason: selectedResult === "open" ? "" : form.exitReason || "",
       screenshotName: fileName || undefined,
       tags: form.tags || [],
       notes: form.notes || "",
     };
-    addTrade(trade);
+    if (editTrade) {
+      updateTrade(editTrade.id, trade);
+    } else {
+      addTrade(trade);
+    }
     // Fire-and-forget sync to Google Sheets (Apps Script)
-    void syncTradeToSheet(trade);
+    console.log(
+      "Submitting trade:",
+      trade.id,
+      "action:",
+      editTrade ? "update" : "insert"
+    );
+    void syncTradeToSheet(trade, editTrade ? "update" : "insert");
     onSaved();
   };
 
@@ -1126,7 +1181,7 @@ const TradeForm: React.FC<{
       {/* Header Section */}
       <div className="text-center sm:text-left">
         <h2 className="mb-2 text-xl font-bold sm:text-2xl text-slate-900 dark:text-white">
-          Add New Trade
+          {editTrade ? "Edit Trade" : "Add New Trade"}
         </h2>
         <p className="text-sm text-slate-600 dark:text-slate-400">
           Record your trading activity with detailed analytics
@@ -1467,152 +1522,164 @@ const TradeForm: React.FC<{
       </div>
 
       {/* Exit Price Section - Moved above Risk Management */}
-      <div className="space-y-4">
-        <h3 className="flex gap-2 items-center text-lg font-semibold text-slate-800 dark:text-slate-200">
-          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-          Exit Details
-        </h3>
+      {selectedResult !== "open" && (
+        <div className="space-y-4">
+          <h3 className="flex gap-2 items-center text-lg font-semibold text-slate-800 dark:text-slate-200">
+            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+            Exit Details
+          </h3>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Exit Price <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={String(form.exitPrice ?? "")}
-                onChange={(e) => set("exitPrice", e.target.value)}
-                onBlur={() => handleFieldBlur("exitPrice")}
-                className={`w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
-                  formErrors.exitPrice && touched.exitPrice
-                    ? "border-red-500 focus:ring-red-500 focus:border-red-500"
-                    : "border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500"
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Exit Price{" "}
+                {selectedResult !== "open" && (
+                  <span className="text-red-500">*</span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={String(form.exitPrice ?? "")}
+                  onChange={(e) => set("exitPrice", e.target.value)}
+                  onBlur={() => handleFieldBlur("exitPrice")}
+                  className={`w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border rounded-lg focus:outline-none focus:ring-2 transition-colors text-sm sm:text-base ${
+                    formErrors.exitPrice && touched.exitPrice
+                      ? "border-red-500 focus:ring-red-500 focus:border-red-500"
+                      : "border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500"
+                  }`}
+                  placeholder="0.00"
+                />
+              </div>
+              {formErrors.exitPrice && touched.exitPrice && (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  {formErrors.exitPrice}
+                </p>
+              )}
+            </div>
+
+            {/* P&L Display - Desktop only */}
+            <div className="hidden md:block">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Projected P&L
+              </label>
+              <div
+                className={`px-3 py-2.5 sm:py-3 rounded-lg border text-center font-semibold text-sm sm:text-base transition-colors ${
+                  pnl >= 0
+                    ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
+                    : "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400"
                 }`}
-                placeholder="0.00"
-              />
-            </div>
-            {formErrors.exitPrice && touched.exitPrice && (
-              <p className="text-xs text-red-600 dark:text-red-400">
-                {formErrors.exitPrice}
+              >
+                {pnl >= 0 ? "+" : ""}₹{Math.abs(pnl).toFixed(2)}
+              </div>
+              <p className="text-xs text-center text-slate-500 dark:text-slate-400">
+                {pnl >= 0 ? "Profit" : "Loss"}
               </p>
-            )}
-          </div>
-
-          {/* P&L Display - Desktop only */}
-          <div className="hidden md:block">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Projected P&L
-            </label>
-            <div
-              className={`px-3 py-2.5 sm:py-3 rounded-lg border text-center font-semibold text-sm sm:text-base transition-colors ${
-                pnl >= 0
-                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
-                  : "bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-400"
-              }`}
-            >
-              {pnl >= 0 ? "+" : ""}₹{Math.abs(pnl).toFixed(2)}
             </div>
-            <p className="text-xs text-center text-slate-500 dark:text-slate-400">
-              {pnl >= 0 ? "Profit" : "Loss"}
-            </p>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Risk Management - Enhanced mobile layout */}
-      <div className="space-y-4">
-        <h3 className="flex gap-2 items-center text-lg font-semibold text-slate-800 dark:text-slate-200">
-          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-          Risk Management
-        </h3>
+      {selectedResult !== "open" && (
+        <div className="space-y-4">
+          <h3 className="flex gap-2 items-center text-lg font-semibold text-slate-800 dark:text-slate-200">
+            <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+            Risk Management
+          </h3>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Stop Loss
-            </label>
-            <div className="relative">
-              <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                value={String(form.stopLoss ?? "")}
-                onChange={(e) => set("stopLoss", e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
-                placeholder="0.00"
-              />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Stop Loss
+              </label>
+              <div className="relative">
+                <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={String(form.stopLoss ?? "")}
+                  onChange={(e) => set("stopLoss", e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Take Profit
-            </label>
-            <div className="relative">
-              <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                value={String(form.takeProfit ?? "")}
-                onChange={(e) => set("takeProfit", e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
-                placeholder="0.00"
-              />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Take Profit
+              </label>
+              <div className="relative">
+                <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={String(form.takeProfit ?? "")}
+                  onChange={(e) => set("takeProfit", e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Risk Amount (₹)
-            </label>
-            <div className="relative">
-              <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                value={String(form.riskAmount ?? "")}
-                onChange={(e) => set("riskAmount", e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
-                placeholder="0.00"
-              />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Risk Amount (Rs)
+              </label>
+              <div className="relative">
+                <span className="absolute left-0 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
+                  ₹
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={String(form.riskAmount ?? "")}
+                  onChange={(e) => set("riskAmount", e.target.value)}
+                  className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Risk Percent (%)
-            </label>
-            <div className="relative">
-              <span className="absolute left-0Projected P&L top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
-                %
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                max="100"
-                value={String(form.riskPercent ?? "")}
-                onChange={(e) => set("riskPercent", e.target.value)}
-                className="w-full pl-10 pr-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
-                placeholder="0.00"
-              />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Risk (%)
+              </label>
+              <div className="relative">
+                <span className="absolute right-3 top-1/2 text-sm -translate-y-1/2 select-none text-slate-500 dark:text-slate-400 sm:text-base">
+                  %
+                </span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={String(form.riskPercent ?? "")}
+                  onChange={(e) => set("riskPercent", e.target.value)}
+                  className="w-full pr-10 pl-3 py-2.5 sm:py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm sm:text-base"
+                  placeholder="0.00"
+                />
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* RR Metrics Display */}
+      {/* RR Metrics Display */}
+      {selectedResult !== "open" && (
         <RRMetrics
           entry={Number(form.entryPrice)}
           sl={form.stopLoss == null ? undefined : Number(form.stopLoss)}
@@ -1620,7 +1687,7 @@ const TradeForm: React.FC<{
           side={String(form.side || "Buy") as any}
           qty={Number(form.quantity)}
         />
-      </div>
+      )}
 
       <div className="h-px bg-gradient-to-r from-transparent to-transparent via-slate-300 dark:via-slate-600" />
 
