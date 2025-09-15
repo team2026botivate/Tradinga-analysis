@@ -176,12 +176,12 @@ const Journal: React.FC = () => {
   const dayAgg = useMemo(() => {
     const map = new Map<string, { pnl: number; count: number }>();
     for (const t of tradesList) {
+      // Convert UTC timestamp to local date for aggregation
       const d = new Date(t.date);
-      // Skip rows with invalid or empty dates to avoid RangeError on toISOString
-      if (isNaN(d.getTime())) {
-        continue;
-      }
-      const key = d.toISOString().slice(0, 10);
+      if (isNaN(d.getTime())) continue;
+      
+      // Use local date components (getFullYear, getMonth, getDate) to avoid UTC shift
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       const dir = t.side === "Buy" || t.side === "Long" ? 1 : -1;
       const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
       const cur = map.get(key) || { pnl: 0, count: 0 };
@@ -196,11 +196,13 @@ const Journal: React.FC = () => {
   const chartData = useMemo(() => {
     const dates = Array.from(dayAgg.keys()).sort();
     let running = 0;
-    return dates.map((d) => {
+    const result = dates.map((d) => {
       const pnl = dayAgg.get(d)?.pnl ?? 0;
       running += pnl;
-      return { date: d, pnl, equity: running };
+      // Use the raw date string directly to avoid any Date object parsing issues
+      return { date: d, pnl, equity: running, dateKey: d };
     });
+    return result;
   }, [dayAgg]);
 
   // Colors for charts based on theme
@@ -540,12 +542,21 @@ const Journal: React.FC = () => {
                     tick={{ fill: axisTickColor, fontSize: 12 }}
                     tickLine={{ stroke: axisLineColor }}
                     axisLine={{ stroke: axisLineColor }}
-                    tickFormatter={(val) =>
-                      new Date(val).toLocaleDateString("en-US", {
+                    tickFormatter={(val) => {
+                      // Parse YYYY-MM-DD as local date to avoid UTC shift
+                      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                        const [y, m, d] = val.split("-");
+                        const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+                        return localDate.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        });
+                      }
+                      return new Date(val).toLocaleDateString("en-US", {
                         month: "short",
                         day: "numeric",
-                      })
-                    }
+                      });
+                    }}
                   />
                   <YAxis
                     tick={{ fill: axisTickColor, fontSize: 12 }}
@@ -569,9 +580,15 @@ const Journal: React.FC = () => {
                       `₹${Number(value).toFixed(2)}`,
                       name === "pnl" ? "Daily P&L" : "Equity",
                     ]}
-                    labelFormatter={(label) =>
-                      new Date(label).toLocaleDateString()
-                    }
+                    labelFormatter={(label) => {
+                      // Parse YYYY-MM-DD as local date to avoid UTC shift
+                      if (typeof label === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(label)) {
+                        const [y, m, d] = label.split("-");
+                        const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+                        return localDate.toLocaleDateString();
+                      }
+                      return new Date(label).toLocaleDateString();
+                    }}
                   />
                   <Bar
                     dataKey="pnl"
@@ -1917,7 +1934,9 @@ const WeekdayBreakup: React.FC<{
   const counts = [0, 0, 0, 0, 0, 0, 0];
 
   for (const [key, { pnl, count }] of dayAgg.entries()) {
-    const dow = new Date(key).getDay();
+    // Parse YYYY-MM-DD as local date components to get correct weekday
+    const [y, m, d] = key.split("-");
+    const dow = new Date(Number(y), Number(m) - 1, Number(d)).getDay();
     sums[dow] += pnl;
     counts[dow] += count;
   }

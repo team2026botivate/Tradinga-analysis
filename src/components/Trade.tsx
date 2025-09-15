@@ -1068,7 +1068,11 @@ const Trade: React.FC = () => {
                     <td className="py-2 pr-4 whitespace-nowrap">
                       {t.sheetTimestamp
                         ? t.sheetTimestamp
-                        : new Date(t.date).toLocaleDateString()}
+                        : (() => {
+                            // Convert UTC timestamp to local date for display
+                            const date = new Date(t.date);
+                            return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+                          })()}
                     </td>
                     <td className="py-2 pr-4">{t.instrument}</td>
                     <td className="py-2 pr-4">{t.side}</td>
