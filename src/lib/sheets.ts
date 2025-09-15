@@ -894,11 +894,11 @@ export const fetchPortfolioStats = async (opts?: {
         "[Sheets] Portfolio stats fetch aborted/failed, retrying once with longer timeout...",
         e?.message || e
       );
+      // Don't pass the same signal that was already aborted
       response = await fetchWithTimeout(
         url,
         { method: "GET" },
-        Math.max(20000, (opts?.timeoutMs ?? 15000) + 5000),
-        opts?.signal
+        Math.max(20000, (opts?.timeoutMs ?? 15000) + 5000)
       );
     } else {
       throw e;
@@ -978,11 +978,11 @@ export const fetchTradingDayStats = async (opts?: {
           "[Sheets] Trading stats fetch aborted/failed, retrying once with longer timeout...",
           e?.message || e
         );
+        // Don't pass the same signal that was already aborted
         response = await fetchWithTimeout(
           url,
           { method: "GET" },
-          Math.max(20000, (opts?.timeoutMs ?? 15000) + 5000),
-          opts?.signal
+          Math.max(20000, (opts?.timeoutMs ?? 15000) + 5000)
         );
       } else {
         throw e;
