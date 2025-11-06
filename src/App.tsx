@@ -9,6 +9,7 @@ import Settings from './components/Settings';
 import Login from './components/Login';
 import Trade from './components/Trade';
 import Journal from './components/Journal';
+import Folders from './components/Folders';
 import Footer from './components/Footer';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -77,6 +78,8 @@ function App() {
         return <Dashboard />;
       case 'journal':
         return <Journal />;
+      case 'folders':
+        return <Folders />;
       case 'analysis':
         return <Analysis />;
       case 'portfolio':

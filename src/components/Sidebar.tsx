@@ -8,7 +8,8 @@ import {
   LogOut,
   BookOpen,
   Sun,
-  Moon
+  Moon,
+  Folder
 } from 'lucide-react';
 import Footer from './Footer';
 import { useTheme } from '../context/ThemeContext';
@@ -28,6 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, collapsed, s
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'journal', label: 'Trade Journal', icon: BookOpen },
+    { id: 'folders', label: 'Folders', icon: Folder },
     // { id: 'analysis', label: 'Analysis', icon: TrendingUp },
     // { id: 'trade', label: 'Trade', icon: ArrowLeftRight },
     // { id: 'portfolio', label: 'Portfolio', icon: Briefcase },
