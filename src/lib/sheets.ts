@@ -82,7 +82,7 @@ function fetchWithTimeout(
 
 async function postToAppsScript(
   payload: any,
-  action: "insert" | "update" = "insert"
+  action: "insert" | "update" | "delete" = "insert"
 ): Promise<void> {
   // GAS_URL is always defined because of fallback above
   const useProxy = GAS_URL.startsWith("/");
@@ -99,31 +99,42 @@ async function postToAppsScript(
     // [Timestamp, Serial No., Entry date, Exit date, Instrument, side, Entry, Exit, Qty, P&L, Strategy, Trading Result, Stoploss, takeprofit, Risk in rs, Risk in %, notes]
     // For insert, both Timestamp and Serial No. are auto-filled by the backend when blank.
     // For update, we send the current timestamp to update the last modified time, and Serial No. (id) to locate the row.
+    // For delete, we only need the Serial No. (id) to locate and delete the row.
     const pnlValue = payload.data.pnl || 0;
     const tradingResult =
       pnlValue > 0 ? "Win" : pnlValue < 0 ? "Loss" : "Breakeven";
 
-    rowData = [
-      action === "update"
-        ? new Date().toISOString().slice(0, 19).replace("T", " ")
-        : "", // Timestamp (current for update, auto for insert)
-      action === "update" ? payload.data.id : "", // Serial No. (use id for update to find the row)
-      payload.data.date || "", // Entry date
-      payload.data.exitDate || "", // Exit date
-      payload.data.instrument || "", // Instrument
-      payload.data.side || "", // side (Buy/Sell/Long/Short)
-      payload.data.entryPrice || "", // Entry
-      payload.data.exitPrice || "", // Exit
-      payload.data.quantity || "", // Qty
-      pnlValue, // P&L
-      payload.data.strategy || "", // Strategy
-      tradingResult, // Trading Result
-      payload.data.stopLoss || "", // Stoploss
-      payload.data.takeProfit || "", // takeprofit
-      payload.data.riskAmount || "", // Risk in rs
-      payload.data.riskPercent || "", // Risk in %
-      payload.data.notes || "", // notes
-    ];
+    if (action === "delete") {
+      // For delete, only the ID is needed to identify the row
+      rowData = [
+        "", // Timestamp (not needed for delete)
+        payload.data.id, // Serial No. (use id to find the row to delete)
+        "", "", "", "", "", "", "", "", "", "", "", "", "", "", // Empty fields for delete
+      ];
+      console.log('🗑️ [POST] Sending DELETE request for trade ID:', payload.data.id, 'to sheet:', DEFAULT_TRADES_SHEET);
+    } else {
+      rowData = [
+        action === "update"
+          ? new Date().toISOString().slice(0, 19).replace("T", " ")
+          : "", // Timestamp (current for update, auto for insert)
+        action === "update" ? payload.data.id : "", // Serial No. (use id for update to find the row)
+        payload.data.date || "", // Entry date
+        payload.data.exitDate || "", // Exit date
+        payload.data.instrument || "", // Instrument
+        payload.data.side || "", // side (Buy/Sell/Long/Short)
+        payload.data.entryPrice || "", // Entry
+        payload.data.exitPrice || "", // Exit
+        payload.data.quantity || "", // Qty
+        pnlValue, // P&L
+        payload.data.strategy || "", // Strategy
+        tradingResult, // Trading Result
+        payload.data.stopLoss || "", // Stoploss
+        payload.data.takeProfit || "", // takeprofit
+        payload.data.riskAmount || "", // Risk in rs
+        payload.data.riskPercent || "", // Risk in %
+        payload.data.notes || "", // notes
+      ];
+    }
   } else if (payload.type === "day" && payload.data) {
     // Insert trading day snapshot into the same columns as a trade row (17+ columns):
     rowData = [
@@ -270,7 +281,7 @@ async function safeText(res: Response) {
 
 export async function syncTradeToSheet(
   trade: Trade,
-  action: "insert" | "update" = "insert"
+  action: "insert" | "update" | "delete" = "insert"
 ): Promise<void> {
   const payload = {
     type: "trade",
@@ -298,6 +309,13 @@ export async function syncTradeToSheet(
       pnl: computePnL(trade),
     },
   };
+
+  // Add deleted flag if present
+  if ("deleted" in trade && (trade as any).deleted) {
+    payload.data.deleted = true;
+    console.log('🚨 [SYNC] Sending DELETE operation for trade:', trade.id, trade.instrument, 'with action:', action);
+  }
+
   await postToAppsScript(payload, action);
 }
 

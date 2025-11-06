@@ -797,6 +797,30 @@ function doPost(e) {
     sheet.appendRow(rowData);
     return ContentService.createTextOutput(JSON.stringify({ success: true }))
       .setMimeType(ContentService.MimeType.JSON);
+  } else if (action === 'delete') {
+    // Delete by Serial No. which is column index 1 (B)
+    const id = rowData[1];
+    const data = sheet.getDataRange().getValues();
+
+    console.log('🗑️ [DELETE] Starting delete operation for ID:', id);
+    console.log('📊 [DELETE] Sheet has', data.length, 'rows');
+
+    // Start from row index 1 (second row) to skip header row (index 0)
+    for (let i = 1; i < data.length; i++) {
+      console.log('🔍 [DELETE] Checking row', i + 1, 'Serial No.:', data[i][1]);
+      // Match by Serial No. which resides in column 1
+      if (data[i][1] == id) {
+        console.log('🎯 [DELETE] Found match at row', i + 1, '- deleting...');
+        // Delete the entire row
+        sheet.deleteRow(i + 1);
+        console.log('✅ [DELETE] Successfully deleted row', i + 1, 'for trade ID:', id);
+        return ContentService.createTextOutput("Deleted successfully")
+          .setMimeType(ContentService.MimeType.TEXT);
+      }
+    }
+    console.log('❌ [DELETE] No match found for ID:', id);
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Trade not found for deletion' }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 
   return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid action' }))

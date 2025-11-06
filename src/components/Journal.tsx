@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   addTrade,
   updateTrade,
+  deleteTrade,
   clearTrades,
   computeMetrics,
   Trade,
@@ -18,7 +19,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { FaDownload, FaEdit } from "react-icons/fa";
+import { FaDownload, FaEdit, FaArrowsAltH, FaTrash } from "react-icons/fa";
 import { syncTradeToSheet, fetchTradesFromSheet } from "../lib/sheets";
 
 const Journal: React.FC = () => {
@@ -179,9 +180,12 @@ const Journal: React.FC = () => {
       // Convert UTC timestamp to local date for aggregation
       const d = new Date(t.date);
       if (isNaN(d.getTime())) continue;
-      
+
       // Use local date components (getFullYear, getMonth, getDate) to avoid UTC shift
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-${String(d.getDate()).padStart(2, "0")}`;
       const dir = t.side === "Buy" || t.side === "Long" ? 1 : -1;
       const pnl = (t.exitPrice - t.entryPrice) * dir * t.quantity;
       const cur = map.get(key) || { pnl: 0, count: 0 };
@@ -470,49 +474,49 @@ const Journal: React.FC = () => {
           <ActivityHeatmap year={new Date().getFullYear()} dayAgg={dayAgg} />
         </Card>
         <Card title="Equity Curve">
-          <div className="p-6 bg-white rounded-2xl border shadow-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-700">
-            <div className="flex flex-col justify-between items-start mb-6 md:flex-row md:items-center">
+          <div className="p-4 bg-white rounded-2xl border shadow-2xl dark:bg-slate-900 border-slate-200 dark:border-slate-700 sm:p-6">
+            <div className="flex flex-col justify-between items-start mb-4 sm:flex-row sm:items-center sm:mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 sm:text-2xl">
                   Performance Chart
                 </h2>
-                <div className="flex gap-4 mt-2">
+                <div className="flex flex-col gap-1 mt-2 sm:flex-row sm:gap-4">
                   <div className="flex gap-1 items-center">
                     <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
-                    <span className="text-sm text-slate-600 dark:text-slate-300">
+                    <span className="text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
                       Total: ₹{m.totalPnL.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex gap-1 items-center">
                     <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                    <span className="text-sm text-slate-600 dark:text-slate-300">
+                    <span className="text-xs text-slate-600 dark:text-slate-300 sm:text-sm">
                       Loss: ₹{Math.abs(m.totalPnL * 0.05).toFixed(2)}
                     </span>
                   </div>
                 </div>
               </div>
-              <span className="px-3 py-1 mt-2 text-sm rounded-full md:mt-0 bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+              <span className="px-2 py-1 mt-2 text-xs rounded-full sm:mt-0 sm:px-3 sm:text-sm bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                 {tradesList.length} trades
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-5 mb-6 md:grid-cols-2">
-              <div className="p-4 rounded-xl border backdrop-blur-sm bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-                <div className="mb-1 text-sm text-slate-600 dark:text-slate-400">
+            <div className="grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 sm:gap-5 sm:mb-6">
+              <div className="p-3 rounded-xl border backdrop-blur-sm bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 sm:p-4">
+                <div className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                   Win Rate
                 </div>
-                <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 sm:text-3xl">
                   {m.winRate.toFixed(1)}%
                 </div>
                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-500">
                   {m.wins}W / {m.losses}L
                 </div>
               </div>
-              <div className="p-4 rounded-xl border backdrop-blur-sm bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
-                <div className="mb-1 text-sm text-slate-600 dark:text-slate-400">
+              <div className="p-3 rounded-xl border backdrop-blur-sm bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 sm:p-4">
+                <div className="mb-1 text-xs text-slate-600 dark:text-slate-400 sm:text-sm">
                   Max Drawdown
                 </div>
-                <div className="text-3xl font-bold text-red-600 dark:text-red-400">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400 sm:text-3xl">
                   ₹{m.worst?.pnl.toFixed(2) || "0"}
                 </div>
                 <div className="mt-1 text-xs text-slate-500 dark:text-slate-500">
@@ -521,11 +525,11 @@ const Journal: React.FC = () => {
               </div>
             </div>
 
-            <div className="w-full h-80">
+            <div className="w-full h-64 sm:h-80">
               <ResponsiveContainer>
                 <BarChart
                   data={chartData}
-                  margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                 >
                   <defs>
                     <linearGradient id="colorBar" x1="0" y1="0" x2="0" y2="1">
@@ -539,14 +543,21 @@ const Journal: React.FC = () => {
                   </defs>
                   <XAxis
                     dataKey="date"
-                    tick={{ fill: axisTickColor, fontSize: 12 }}
+                    tick={{ fill: axisTickColor, fontSize: 10 }}
                     tickLine={{ stroke: axisLineColor }}
                     axisLine={{ stroke: axisLineColor }}
                     tickFormatter={(val) => {
                       // Parse YYYY-MM-DD as local date to avoid UTC shift
-                      if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                      if (
+                        typeof val === "string" &&
+                        /^\d{4}-\d{2}-\d{2}$/.test(val)
+                      ) {
                         const [y, m, d] = val.split("-");
-                        const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+                        const localDate = new Date(
+                          Number(y),
+                          Number(m) - 1,
+                          Number(d)
+                        );
                         return localDate.toLocaleDateString("en-US", {
                           month: "short",
                           day: "numeric",
@@ -559,7 +570,7 @@ const Journal: React.FC = () => {
                     }}
                   />
                   <YAxis
-                    tick={{ fill: axisTickColor, fontSize: 12 }}
+                    tick={{ fill: axisTickColor, fontSize: 10 }}
                     tickLine={{ stroke: axisLineColor }}
                     axisLine={{ stroke: axisLineColor }}
                     tickFormatter={(value) =>
@@ -572,9 +583,10 @@ const Journal: React.FC = () => {
                     contentStyle={{
                       background: tooltipBg,
                       border: `1px solid ${tooltipBorder}`,
-                      borderRadius: "8px",
+                      borderRadius: "6px",
                       backdropFilter: "blur(4px)",
                       boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                      fontSize: "12px",
                     }}
                     formatter={(value, name) => [
                       `₹${Number(value).toFixed(2)}`,
@@ -582,9 +594,16 @@ const Journal: React.FC = () => {
                     ]}
                     labelFormatter={(label) => {
                       // Parse YYYY-MM-DD as local date to avoid UTC shift
-                      if (typeof label === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(label)) {
+                      if (
+                        typeof label === "string" &&
+                        /^\d{4}-\d{2}-\d{2}$/.test(label)
+                      ) {
                         const [y, m, d] = label.split("-");
-                        const localDate = new Date(Number(y), Number(m) - 1, Number(d));
+                        const localDate = new Date(
+                          Number(y),
+                          Number(m) - 1,
+                          Number(d)
+                        );
                         return localDate.toLocaleDateString();
                       }
                       return new Date(label).toLocaleDateString();
@@ -593,7 +612,7 @@ const Journal: React.FC = () => {
                   <Bar
                     dataKey="pnl"
                     fill="url(#colorBar)"
-                    radius={[4, 4, 0, 0]}
+                    radius={[3, 3, 0, 0]}
                     animationDuration={800}
                   />
                   <Line
@@ -608,15 +627,15 @@ const Journal: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            <div className="flex gap-8 justify-center mt-6 text-sm">
+            <div className="flex flex-col gap-2 justify-center mt-4 text-xs sm:flex-row sm:gap-8 sm:mt-6 sm:text-sm">
               <div className="flex gap-2 items-center">
-                <span className="w-3 h-3 bg-gradient-to-br from-emerald-400 to-green-600 rounded-full"></span>
+                <span className="w-2 h-2 sm:w-3 sm:h-3 bg-gradient-to-br from-emerald-400 to-green-600 rounded-full"></span>
                 <span className="text-slate-600 dark:text-slate-300">
                   Cumulative P&L
                 </span>
               </div>
               <div className="flex gap-2 items-center">
-                <span className="w-3 h-3 bg-orange-400 rounded-full"></span>
+                <span className="w-2 h-2 sm:w-3 sm:h-3 bg-orange-400 rounded-full"></span>
                 <span className="text-slate-600 dark:text-slate-300">
                   Net After Brokerage
                 </span>
@@ -769,6 +788,7 @@ const Journal: React.FC = () => {
                       "Risk in rs",
                       "Risk in %",
                       "notes",
+                      "Actions",
                     ].map((label) => (
                       <th
                         key={label}
@@ -868,17 +888,53 @@ const Journal: React.FC = () => {
                             : "-"}
                         </td>
                         <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
-                          <div className="flex justify-between items-center">
-                            <span>{t.notes || "-"}</span>
+                          <span>{t.notes || "-"}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-2">
+                            {isOpen && (
+                              <FaArrowsAltH
+                                className="text-orange-500 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-200"
+                                title="Partial Exit Available"
+                              />
+                            )}
                             <button
                               onClick={() => {
                                 setEditTrade(t);
                                 setShowFormModal(true);
                               }}
-                              className="ml-2 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
+                              className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
                               title="Edit trade"
                             >
                               <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `Are you sure you want to delete this trade for ${t.instrument}? This will permanently remove it from both local storage and Google Sheet.`
+                                  )
+                                ) {
+                                  // Mark trade as deleted and sync to sheet first
+                                  const deletedTrade = { ...t, deleted: true };
+                                  console.log(
+                                    "🔴 [DELETE] Starting delete for trade:",
+                                    t.id,
+                                    t.instrument
+                                  );
+                                  void syncTradeToSheet(deletedTrade, "delete");
+                                  // Then remove from local storage
+                                  deleteTrade(t.id);
+                                  console.log(
+                                    "✅ [DELETE] Local storage updated, UI will refresh"
+                                  );
+                                  setForceTick((v) => v + 1);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+                              title="Delete trade"
+                            >
+                              <FaTrash />
                             </button>
                           </div>
                         </td>
@@ -1969,52 +2025,54 @@ const WeekdayBreakup: React.FC<{
       </div>
 
       {/* Graph */}
-      <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 sm:gap-4">
-        {sums.map((v, i) => {
-          const pct = Math.max(8, (Math.abs(v) / max) * 100);
-          const positive = v >= 0;
+      <div className="overflow-x-auto">
+        <div className="grid grid-cols-7 gap-1 min-w-[280px] sm:min-w-0 sm:gap-4">
+          {sums.map((v, i) => {
+            const pct = Math.max(8, (Math.abs(v) / max) * 100);
+            const positive = v >= 0;
 
-          return (
-            <div key={i} className="flex flex-col items-center">
-              <div className="flex flex-col items-center mb-1 w-full sm:mb-2">
-                <div className="flex relative flex-col justify-end w-full h-24 sm:h-40">
-                  <div
-                    className={`w-full rounded-t-lg transition-all duration-500 ease-out ${
-                      positive ? "bg-emerald-500" : "bg-red-500"
-                    } group-hover:opacity-90`}
-                    style={{ height: `${pct}%` }}
-                  >
-                    <div className="absolute right-0 left-0 -top-6 text-center opacity-0 transition-opacity group-hover:opacity-100">
-                      <div className="inline-block px-2 py-1 text-xs text-white rounded bg-slate-900">
-                        ₹{v.toFixed(2)}
+            return (
+              <div key={i} className="flex flex-col items-center">
+                <div className="flex flex-col items-center mb-1 w-full sm:mb-2">
+                  <div className="flex relative flex-col justify-end w-full h-20 sm:h-40">
+                    <div
+                      className={`w-full rounded-t-lg transition-all duration-500 ease-out ${
+                        positive ? "bg-emerald-500" : "bg-red-500"
+                      } group-hover:opacity-90`}
+                      style={{ height: `${pct}%` }}
+                    >
+                      <div className="absolute right-0 left-0 -top-6 text-center opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="inline-block px-2 py-1 text-xs text-white rounded bg-slate-900">
+                          ₹{v.toFixed(0)}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="text-center">
-                <div className="text-xs font-medium sm:text-sm text-slate-800 dark:text-slate-200">
-                  {labels[i]}
-                </div>
-                <div
-                  className={`text-2xs sm:text-xs ${
-                    positive
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-red-600 dark:text-red-400"
-                  }`}
-                >
-                  {v === 0 ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(0)}`}
-                </div>
-                {counts[i] > 0 && (
-                  <div className="mt-1 text-2xs text-slate-500 dark:text-slate-400">
-                    {counts[i]} trade{counts[i] !== 1 ? "s" : ""}
+                <div className="text-center">
+                  <div className="text-xs font-medium sm:text-sm text-slate-800 dark:text-slate-200">
+                    {labels[i].charAt(0)}
                   </div>
-                )}
+                  <div
+                    className={`text-xs sm:text-xs ${
+                      positive
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {v === 0 ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(0)}`}
+                  </div>
+                  {counts[i] > 0 && (
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400 sm:mt-1">
+                      {counts[i]} trade{counts[i] !== 1 ? "s" : ""}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
 
       {/* Stats */}

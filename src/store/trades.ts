@@ -55,6 +55,14 @@ export function updateTrade(id: string, patch: Partial<Trade>) {
   }
 }
 
+export function deleteTrade(id: string) {
+  const trades = getTrades();
+  const filtered = trades.filter(t => t.id !== id);
+  if (filtered.length !== trades.length) {
+    saveTrades(filtered);
+  }
+}
+
 export function clearTrades() {
   localStorage.removeItem(KEY);
   try { window.dispatchEvent(new CustomEvent('trades_changed')); } catch {}
